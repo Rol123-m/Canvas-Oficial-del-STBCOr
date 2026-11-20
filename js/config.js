@@ -18,7 +18,7 @@ window.CONFIG = {
         · Quién puede acceder: Cualquier persona
      5) Copia la URL que termina en /exec y pégala aquí abajo.
      Mientras `api` quede vacío, la app funciona en MODO DEMO (datos locales). */
-  api: '',
+  api: 'https://script.google.com/macros/s/AKfycbxk2F9G2ZGQerPfS9Z7AB3orqMcdt6Aro9XA8EnkrwjvaqF5_n4MCvngUUI1duTR9uPuA/exec',
   // api: 'https://script.google.com/macros/s/AKfycbxk2F9G2ZGQerPfS9Z7AB3orqMcdt6Aro9XA8EnkrwjvaqF5_n4MCvngUUI1duTR9uPuA/exec',
 
   /* ---- Claves del personal de dirección (acceso a TODOS los grupos) ---- */
