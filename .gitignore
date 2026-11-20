@@ -1,0 +1,22 @@
+# ============================================================
+# Plataforma del Seminario · .gitignore
+# ============================================================
+
+# Backend de Google Apps Script — contiene las CLAVES del personal
+# (rector, decano, secretaria y profesores). NO debe subirse al repositorio.
+code.gs
+apps-script/
+*.gs
+
+# Si quieres mantener la configuración con claves fuera del repo,
+# descomenta la línea siguiente (guárdate una copia local):
+# js/config.js
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+*.log
+
+# Editor
+.vscode/
+.idea/
