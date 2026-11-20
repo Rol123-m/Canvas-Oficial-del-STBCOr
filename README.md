@@ -1,122 +1,103 @@
-# Plataforma del Seminario · Modelo de asignaturas
+# Plataforma de Asignaturas del Seminario
 
-Aplicación web lista para montar **cualquier asignatura del seminario** siguiendo el
-formato y diseño de la página de griego (misma paleta, tipografía y componentes).
-El profesor crea módulos, matricula a grupos o alumnos, publica exámenes y anuncios,
-y consulta el progreso. Rectoría, decanato y secretaría acceden a **todos los grupos**
-con su código. La base de datos vive en **Google Sheets**, administrada por **un único
-archivo `code.gs`** (Google Apps Script) conectado mediante `js/config.js`.
+Aplicación web estilo **Canvas/moodle ligero** para el seminario, basada en el modelo de la página de griego: cada asignatura se abre con sus **módulos (pestañas)**, **exámenes tipo quiz**, **anuncios**, **progreso** y un **foro de dudas en vivo** que el profesor abre o cierra.
 
-## Estructura
+- **Estudiantes**: entran con su usuario y contraseña; ven **solo las asignaturas en las que están matriculados**, sus anuncios y su progreso.
+- **Profesores**: cuenta creada por la dirección (usuario + contraseña); gestionan **únicamente su asignatura** con total libertad (módulos, exámenes, anuncios, matrícula, foro).
+- **Dirección (rector · decano · secretaría)**: entra con su clave; **ve y modifica todo**. Crea asignaturas, **asigna profesores, genera sus credenciales y se las entrega**, matricula grupos completos y administra la base de datos.
+
+## Arquitectura
 
 ```
-plataforma-seminario/
-├── index.html              → página única (SPA)
-├── css/app.css             → diseño (basado en la página de griego)
-├── js/config.js            → PERSONALIZACIÓN: nombre, colores, claves y API
-├── js/demo-data.js         → base de estudiantes (72) + asignatura de ejemplo
-├── js/api.js               → capa de datos: demo local o Google Sheets
-├── js/app.js               → lógica de la aplicación (roles, vistas, acciones)
-├── apps-script/code.gs     → backend ÚNICO para Google Apps Script (NO subir al repo)
-├── .gitignore              → excluye code.gs (contiene las claves)
-├── vendor/                 → fuentes e iconos locales (sin conexión)
-└── assets/                 → logo e iconos
+[ Navegador ]
+   index.html · css/app.css · js/app.js
+   js/config.js  ← configuración y URL de la API
+        │  fetch (JSON)
+        ▼
+[ Google Apps Script ]  code.gs  ← TODO el servidor, un solo archivo
+        │
+        ▼
+[ Google Sheets ]  (una hoja por tabla: Estudiantes, Profesores,
+                    Asignaturas, Matriculas, Pestanas, Examenes,
+                    Preguntas, Intentos, Progreso, Anuncios, Chat)
 ```
 
-## Arranque rápido (modo demo, sin servidor)
+Mientras `api` esté vacío en `js/config.js`, la app funciona en **MODO DEMO** (datos en el navegador), útil para probar sin servidor.
 
-1. Sube la carpeta a cualquier alojamiento estático (GitHub Pages, Netlify…) o abre
-   `index.html` con un servidor local.
-2. Entra como estudiante: `jose.aguilera` / `rk7bmsqr` · como profesor:
-   `profesor-seminario` · como dirección: `rector-kmczyts`.
-3. Todo se guarda en el navegador (localStorage). Botón «Restablecer datos de prueba»
-   en la pantalla de acceso.
+## Despliegue con Google Sheets + Apps Script
 
-Mientras `api` esté vacío en `js/config.js`, la app funciona en modo demo.
-
-## Conectar la base de datos (Google Sheets + Apps Script)
-
-1. Crea una **hoja de cálculo nueva** en Google Drive.
-2. Menú **Extensiones → Apps Script**. Borra lo que haya y pega **todo el contenido**
-   de `apps-script/code.gs`.
-3. Pulsa **Ejecutar → función `setup`** y autoriza los permisos. Esto crea las 9 hojas
-   (Estudiantes, Asignaturas, Matriculas, Pestanas, Examenes, Preguntas, Intentos,
-   Progreso, Anuncios), **carga los 72 estudiantes** y una asignatura de ejemplo.
-4. **Implementar → Nueva implementación → Aplicación web**, con:
+1. **Base de datos**: crea una hoja de cálculo nueva en Google Drive (el nombre da igual).
+2. **Servidor**: en la hoja → *Extensiones → Apps Script*. Borra lo que haya y pega **todo el contenido de `code.gs`**.
+3. **Instalar**: en el editor, ejecuta una vez la función **`setup`** (elige `setup` y pulsa ▶). Autoriza los permisos cuando los pida. Esto crea todas las tablas.
+4. **Publicar la API**: *Implementar → Nueva implementación → tipo: Aplicación web*
    - *Ejecutar como*: **Yo**
    - *Quién puede acceder*: **Cualquier persona**
-5. Copia la URL que termina en `/exec` y pégala en `js/config.js`:
-   ```js
-   api: 'https://script.google.com/macros/s/XXXX…/exec',
-   ```
-6. Vuelve a publicar la web (config.js actualizado). Listo: todo queda guardado en la
-   hoja y compartido entre todos los dispositivos.
+   - Copia la URL que termina en **`/exec`**.
+5. **Conectar el frontal**: abre `js/config.js` y pega esa URL en `api: ''`.
+6. **Publicar la app**: sube la carpeta a GitHub y activa **GitHub Pages** (o usa Netlify/Vercel). Los profesores y estudiantes entran por esa URL.
 
-> Si más adelante cambias el código de `code.gs`, crea una **nueva implementación**
-> (o «Gestionar implementaciones → editar → Nueva versión»).
+> Si prefieres usar una hoja de cálculo que ya tienes, abre Apps Script → *Configuración del proyecto → Propiedades del script* y añade `BD_ID` con el ID de esa hoja (el que aparece en la URL entre `/d/` y `/edit`).
 
-## Roles y permisos
+## Cargar la base de estudiantes (72)
 
-| Rol | Entra con | Ve |
-|---|---|---|
-| Estudiante | usuario + contraseña (hoja *Estudiantes*) | Sus asignaturas: módulos, quizzes, anuncios, su progreso |
-| Profesor | código de `PROFESORES` (config.js / code.gs) | Solo sus asignaturas: todo el panel de gestión |
-| Rector | `rector-kmczyts` | Todas las asignaturas y grupos + panel de dirección |
-| Decano | `decano-sw7gfv3` | Todas las asignaturas y grupos + panel de dirección |
-| Secretaría | `secretaria-kmp9fke` | Todas las asignaturas y grupos + panel de dirección |
+Tres opciones, en orden de comodidad:
 
-Las claves están en **dos sitios** (deben coincidir): `js/config.js` (claves → para el
-modo demo) y `apps-script/code.gs` (constantes `CLAVES` y `PROFESORES` → para el modo
-Google Sheets). Cámbialas ahí cuando lo necesites.
+1. **Desde la app** (recomendado): entra como dirección → *Estudiantes (base) → Importar lista (pegar)* y pega el contenido de `estudiantes.csv` (o copia y pega desde tu Google Sheet; acepta comas, punto y coma y tabulaciones).
+2. **Archivo**: importa `estudiantes.csv` en la hoja **Estudiantes** de la base de datos (Archivo → Importar → Reemplazar datos desde la fila 2).
+3. **Copiar y pegar** las columnas en la hoja: `Nombre | Grupo | Usuario | Contraseña | Estado`.
 
-### Qué puede hacer el personal
-- **Asignaturas**: crear (nombre, descripción, color), editar, eliminar.
-- **Módulos/pestañas**: 4 tipos — *Lectura* (texto con subtítulos y listas),
-  *Vocabulario* (`término | significado | dato`, una por línea), *Recursos*
-  (`título | descripción | url | texto del botón`) y *Enlace*. Ordenar, ocultar,
-  editar, eliminar.
-- **Matrícula**: añadir un **grupo completo**, alumnos individuales (buscador y
-  casillas), quitar alumnos.
-- **Base de estudiantes**: alta, edición, activar/desactivar y eliminar registros
-  (también para el grupo nuevo del próximo curso).
-- **Exámenes**: editor con preguntas de **selección múltiple** (4 opciones) y
-  **verdadero/falso**, puntos por pregunta, respuesta correcta; resultados por
-  estudiante y exportación CSV.
-- **Anuncios**: publicar, fijar arriba, editar, eliminar.
-- **Progreso**: matriz del grupo (módulos marcados + mejor nota de cada quiz + %)
-  y exportación CSV.
-- **Dirección**: estadísticas por grupo, listado de todas las asignaturas con su
-  progreso medio y acceso directo a cada una.
+## Primer uso (flujo completo)
 
-El progreso se calcula así: módulos marcados como completados + quizzes realizados,
-sobre el total de módulos y quizzes visibles.
+1. **Dirección entra** (pestaña *Dirección*, clave `rector-kmczyts`, `decano-sw7gfv3` o `secretaria-kmp9fke` — cámbialas en `code.gs` y en `js/config.js`).
+2. **Crea la asignatura**: botón *Nueva asignatura* → nombre, color, y en el mismo formulario:
+   - **Profesor**: elige uno existente o «Nuevo profesor…» (se generan automáticamente su **usuario y contraseña**; si indicas su correo, además **se le envían por email**).
+   - **Matricular grupos**: marca uno o varios grupos (1.er año, 2.º año…) y quedarán matriculados al crear.
+   - Al guardar aparece el **recuadro de credenciales** con botones *Copiar credenciales* y *Copiar mensaje de bienvenida* para enviárselas al profesor.
+3. **El profesor entra** (pestaña *Profesor*) y monta su asignatura: *Módulos* (lecturas, vocabulario, recursos, enlaces), *Exámenes* (quizzes con corrección automática), *Anuncios*, matrícula individual o por grupo, y **Ajustes**.
+4. **Foro de dudas**: en la asignatura, el profesor pulsa **«Abrir el foro»**; a partir de ese momento los estudiantes matriculados pueden escribir y todo se actualiza **en vivo** (cada 4 s, configurable en `js/config.js`). El profesor puede cerrarlo cuando quiera y eliminar mensajes.
+5. **Los estudiantes entran** con su usuario/contraseña, ven sus asignaturas matriculadas y los anuncios; al tocar una asignatura acceden a su panel con módulos, quizzes, anuncios, foro y su progreso.
 
-## Personalización (js/config.js)
+## Personalización (sin tocar la lógica)
 
-- `app`, `school`, `course` → nombres que se muestran en el acceso y la barra superior.
-- `tema` → colores (los mismos de la página de griego por defecto).
-- `PROFESORES` / `profesores` → códigos y nombres de cada profesor.
-- `CLAVES` / `claves` → códigos de rector, decano y secretaría.
+Todo en `js/config.js`:
 
-Para montar **otra asignatura**: entra con el código del profesor, crea la asignatura,
-añade módulos y exámenes desde el propio panel. No hace falta tocar código.
+| Campo | Qué hace |
+| --- | --- |
+| `app`, `school`, `course`, `logo` | Nombres y logo de la cabecera |
+| `api` | URL del Web App de Apps Script |
+| `claves` | Claves de rectoría/decanato/secretaría (modo demo; en servidor van en `code.gs`) |
+| `foro.intervaloMs` | Frecuencia de actualización del foro (2000–10000) |
+| `colores` | Paleta sugerida al crear asignaturas |
+| `tema` | Colores generales (mismos que la página de griego) |
 
-## Seguridad y .gitignore
+Tipos de módulo disponibles: **Lectura** (texto con títulos y listas), **Vocabulario** (término | significado | dato), **Recursos** (título | descripción | url | botón) y **Enlace**.
 
-- El `.gitignore` excluye **`code.gs`** (y la carpeta `apps-script/`): ese archivo
-  contiene las claves del personal y **no debe subirse** al repositorio.
-  Consérvalo localmente o en un lugar privado; a Apps Script se pega a mano.
-- Las contraseñas de estudiantes se guardan tal cual en la hoja (es el modelo
-  solicitado): comparte la hoja solo con el personal autorizado.
-- La app web de Apps Script debe publicarse como «Cualquier persona» para que el
-  navegador pueda llamarla; las credenciales siguen validándose en cada acción.
+## Seguridad y repo
 
-## Notas técnicas
+- **`.gitignore` excluye `code.gs`**: el código del servidor (con las claves de la dirección) **nunca se sube al repositorio**; vive solo en Google Apps Script.
+- Las contraseñas de estudiantes y profesores se guardan en la hoja (visibles para la dirección desde *Estudiantes (base)*). Es una solución deliberadamente simple para el seminario; la dirección puede regenerar la clave de cualquier profesor con un clic.
+- La API valida en **cada acción** quién eres y sobre qué asignatura tienes permiso: un profesor no puede tocar la asignatura de otro y un estudiante solo escribe en el foro de la suya, y solo si está abierto.
 
-- Sin servidor propio: GitHub Pages (frontend) + Apps Script (API) + Sheets (BD).
-- Las llamadas usan `fetch` con `Content-Type: text/plain` para evitar la petición
-  previa CORS de Apps Script; la respuesta llega en JSON.
-- Iconos y fuentes van en `vendor/` (Font Awesome local + Open Sans/Merriweather),
-  igual que en la página de griego, así funciona sin conexión tras la primera carga.
-- El diseño es responsive: en móvil el menú lateral pasa a una barra inferior y las
-  tablas se desplazan horizontalmente.
+## Pruebas sin servidor (modo demo)
+
+Abre `index.html` con un servidor local (`python3 -m http.server`) o sube a GitHub Pages con `api` vacío:
+
+- Estudiante: `jose.aguilera` / `rk7bmsqr`
+- Profesor: `eliud.griego` / `griego2026`
+- Dirección: `rector-kmczyts`
+
+Botón *Restablecer datos de prueba* para volver al estado inicial.
+
+## Archivos
+
+```
+index.html            Página única de la aplicación
+css/app.css           Estilos (tema de la página de griego)
+js/config.js          Configuración editable
+js/demo-data.js       Base de los 72 estudiantes + asignatura modelo (demo)
+js/api.js             Capa API: demo (localStorage) o Apps Script
+js/app.js             Interfaz y lógica de las tres vistas
+code.gs               SERVIDOR completo (no se sube al repo)
+estudiantes.csv       Base de estudiantes lista para importar
+.gitignore            Excluye code.gs del repositorio
+```

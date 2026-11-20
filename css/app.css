@@ -182,3 +182,29 @@ table{font-size:.84rem}th,td{padding:.55rem .6rem}
 @media(hover:none){.btn:active{filter:brightness(.92)}}
 @media print{.top,.side,.bnav{display:none}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ===== asignaturas · credenciales · foro (v2) ===== */
+.asigcard{display:flex;flex-direction:column;gap:.55rem}
+.asigcard h3{margin:0}
+.credbox{display:grid;gap:.5rem;background:var(--navy-l);border:1px dashed #b5c9de;border-radius:12px;padding:.9rem}
+.credbox>div{display:flex;justify-content:space-between;gap:1rem;align-items:center}
+.credbox span{font-size:.8rem;color:var(--mut);font-weight:600}
+.credbox .mono{font-size:.95rem;color:var(--navy)}
+.ibtn.xs{width:26px;height:26px;border:0;background:none}
+.fwrap{display:flex;flex-direction:column;gap:.9rem}
+.fmsgbox{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:1rem;height:min(52vh,460px);overflow-y:auto;display:flex;flex-direction:column;gap:.7rem}
+.fmsg{max-width:78%;background:#fff;border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:.6rem .8rem;box-shadow:var(--sh);align-self:flex-start}
+.fmsg.mio{align-self:flex-end;background:var(--navy);color:#fff;border-color:var(--navy);border-radius:14px 14px 4px 14px}
+.fmsg p{margin:.25rem 0 0;font-size:.92rem;white-space:pre-line;word-break:break-word}
+.fmsg.mio p{color:#fff}
+.fmh{display:flex;gap:.45rem;align-items:center;flex-wrap:wrap;font-size:.72rem;color:var(--mut)}
+.fmh b{font-size:.8rem;color:var(--navy)}
+.fmh small{margin-left:auto}
+.fmh .ibtn{width:26px;height:26px;border:0;background:none;color:var(--mut);padding:0}
+.fmsg.mio .fmh{color:#cfe0f3}
+.fmsg.mio .fmh b{color:#fff}
+.fmsg.mio .fmh .ibtn{color:#cfe0f3}
+.finput .in{display:flex;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}
+.finput input{flex:1;border:0;padding:.75rem .9rem;font:inherit;outline:0;min-width:0}
+.finput .btn{border-radius:0;align-self:stretch}
+@media(max-width:480px){.fmsg{max-width:92%}.fmh small{display:none}}

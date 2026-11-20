@@ -88,14 +88,26 @@ window.DEMO = (() => {
 
   const grupos = ['1.er año', '2.º año', '3.er año', '4.º año', 'Sede Habana · 2.º año', 'Sede Habana · 3.er año'];
 
-  /* ---- Asignatura modelo (Griego Koiné I) ---- */
+  /* ---- Asignaturas modelo + profesores ----
+     Los profesores son cuentas de la base de datos (usuario y contraseña).
+     La dirección los crea desde la app y les envía sus credenciales. */
   function db() {
     const now = new Date().toISOString();
     const asig = 'asig-demo';
     return {
       estudiantes, grupos,
-      asignaturas: [{ id: asig, nombre: 'Griego Koiné I', descripcion: 'Introducción al griego del Nuevo Testamento. 12 lecciones para leer la Escritura en su lengua original.', color: '#14385c', profesor: 'profesor-seminario', profesorNombre: 'Profesor', creada: now }],
-      matriculas: estudiantes.filter(e => e.grupo === '1.er año').map(e => ({ id: 'm-' + e.usuario, asignaturaId: asig, usuario: e.usuario, grupo: e.grupo, fecha: now })),
+      profesores: [
+        { id: 'pr1', nombre: 'Prof. Eliú Alarcón', usuario: 'eliud.griego', clave: 'griego2026', email: '', estado: 'Activo', creado: now },
+        { id: 'pr2', nombre: 'Prof. Sara Mendoza', usuario: 'sara.mendoza', clave: 'homiletica7', email: '', estado: 'Activo', creado: now }
+      ],
+      asignaturas: [
+        { id: asig, nombre: 'Griego Koiné I', descripcion: 'Introducción al griego del Nuevo Testamento. 12 lecciones para leer la Escritura en su lengua original.', color: '#14385c', profesor: 'eliud.griego', profesorNombre: 'Prof. Eliú Alarcón', chatAbierto: 'Si', creada: now },
+        { id: 'asig-demo2', nombre: 'Homilética I', descripcion: 'Principios de la predicación expositiva y construcción del sermón.', color: '#3f7d58', profesor: '', profesorNombre: '', chatAbierto: 'No', creada: now }
+      ],
+      matriculas: [
+        ...estudiantes.filter(e => e.grupo === '1.er año').map(e => ({ id: 'm-' + e.usuario, asignaturaId: asig, usuario: e.usuario, grupo: e.grupo, fecha: now })),
+        ...estudiantes.filter(e => e.grupo === '3.er año').map(e => ({ id: 'm2-' + e.usuario, asignaturaId: 'asig-demo2', usuario: e.usuario, grupo: e.grupo, fecha: now }))
+      ],
       pestanas: [
         { id: 'p1', asignaturaId: asig, titulo: 'Presentación', icono: 'fa-circle-info', tipo: 'contenido', orden: 1, visible: true,
           contenido: 'Bienvenido a la asignatura.\n\nEsta plataforma reúne todo lo que necesitas: los módulos de estudio, el vocabulario, los recursos y las evaluaciones.\n\n## Cómo funciona\n- Cada semana se abren nuevos módulos en el menú.\n- Marca cada módulo como completado al terminarlo.\n- Los quizzes se realizan aquí mismo y la nota se registra sola.\n\nSi tienes dudas, escribe a tu profesor.' },
@@ -122,7 +134,13 @@ window.DEMO = (() => {
         { id: 'q9', examenId: 'x2', tipo: 'sm', texto: '¿Cómo se dice «Dios» en griego?', opciones: JSON.stringify(['κύριος', 'θεός', 'ἄνθρωπος', 'πίστις']), correcta: 1, puntos: 2, orden: 4 },
         { id: 'q10', examenId: 'x2', tipo: 'vf', texto: 'El alfabeto griego tiene 24 letras.', opciones: JSON.stringify(['Verdadero', 'Falso']), correcta: 0, puntos: 2, orden: 5 }
       ],
-      anuncios: [{ id: 'a1', asignaturaId: asig, titulo: 'Bienvenidos a Griego Koiné I', cuerpo: 'El curso es 100 % en línea. Cada semana se abren módulos nuevos y al cierre se realiza el quiz. Revisa la pestaña Recursos para el material complementario.', tag: 'Bienvenida', autor: 'Profesor', fecha: now, pin: true }],
+      anuncios: [
+        { id: 'a1', asignaturaId: asig, titulo: 'Bienvenidos a Griego Koiné I', cuerpo: 'El curso es 100 % en línea. Cada semana se abren módulos nuevos y al cierre se realiza el quiz. Revisa la pestaña Recursos para el material complementario.', tag: 'Bienvenida', autor: 'Prof. Eliú Alarcón', fecha: now, pin: true },
+        { id: 'a2', asignaturaId: 'asig-demo2', titulo: 'Homilética I · inicio de curso', cuerpo: 'Esta asignatura se está preparando. Pronto recibirás el plan de lecciones.', tag: 'Aviso', autor: 'Dirección', fecha: now, pin: false }
+      ],
+      chat: [
+        { id: 'c1', asignaturaId: asig, usuario: 'eliud.griego', nombre: 'Prof. Eliú Alarcón', rol: 'profesor', texto: '¡Bienvenidos al foro de dudas! Aquí pueden preguntar sobre el alfabeto y la lección 1.', fecha: now }
+      ],
       intentos: [],
       progreso: []
     };
