@@ -1,31 +1,42 @@
 /* ============================================================
-   API.JS · Capa de datos de la plataforma
-   · Con CONFIG.api vacío → MODO DEMO (localStorage, sin servidor)
-   · Con CONFIG.api lleno  → Google Apps Script (code.gs) + Google Sheets
-   Las dos modalidades implementan exactamente las mismas acciones.
-
-   Modelo de accesos:
-   · Estudiante  → entra con usuario y contraseña (base de datos)
-   · Profesor    → cuenta creada por la dirección; gestiona SOLO su asignatura
-   · Dirección   → rector / decano / secretaría con su clave; acceso total
+   API.JS · Cliente de datos de la Plataforma del Seminario
+   Conectado a Supabase Edge Functions. Las credenciales no se
+   guardan en el navegador; se utiliza un token de sesión.
    ============================================================ */
 window.API = {
-  get demo() { return !window.CONFIG.api; },
+  get demo() { return false; },
+  logout() { try { localStorage.removeItem('canvas.supabase.session.v1'); } catch {} },
   async call(action, payload = {}) {
-    if (this.demo) return window.DemoAPI.handle(action, payload);
+    const cleanPayload = JSON.parse(JSON.stringify(payload || {}));
+    delete cleanPayload.auth;
+    delete cleanPayload.sesion;
+    delete cleanPayload.clave;
+    const token = localStorage.getItem('canvas.supabase.session.v1') || '';
+    const headers = {
+      'Content-Type': 'application/json',
+      'apikey': window.CONFIG.supabaseKey
+    };
+    if (token) headers.Authorization = 'Bearer ' + token;
     const res = await fetch(window.CONFIG.api, {
-      method: 'POST', redirect: 'follow',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action, payload })
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ action, payload: cleanPayload })
     });
-    if (!res.ok) throw new Error('No se pudo conectar con el servidor (' + res.status + ')');
-    const j = await res.json();
-    if (!j.ok) throw new Error(j.error || 'Error del servidor');
+    let j;
+    try { j = await res.json(); } catch { throw new Error('El servidor devolvió una respuesta inválida.'); }
+    if (!res.ok || !j.ok) {
+      const message = j.error || 'No se pudo conectar con Supabase.';
+      if (/sesión ha caducado|inicia sesión/i.test(message)) this.logout();
+      throw new Error(message);
+    }
+    if (j.data && j.data.token) {
+      localStorage.setItem('canvas.supabase.session.v1', j.data.token);
+    }
     return j.data;
   }
 };
 
-/* ---------- API DEMO (localStorage) ---------- */
+/* ---------- API DEMO (deshabilitada en producción) ---------- */
 window.DemoAPI = (() => {
   'use strict';
   const KEY = 'seminario.db.v1';
