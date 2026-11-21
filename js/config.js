@@ -9,26 +9,9 @@ window.CONFIG = {
   course: '2026–2027',
   logo: 'assets/logo.png',
 
-  /* ---- Conexión con la base de datos (Google Sheets + Apps Script) ----
-     1) Crea una hoja de cálculo nueva en Google Drive.
-     2) Extensiones → Apps Script y pega TODO el contenido de code.gs.
-     3) Ejecuta una vez la función setup (autoriza los permisos).
-     4) Implementar → Nueva implementación → Aplicación web
-        · Ejecutar como: Yo
-        · Quién puede acceder: Cualquier persona
-     5) Copia la URL que termina en /exec y pégala aquí abajo.
-     Mientras `api` quede vacío, la app funciona en MODO DEMO (datos locales). */
-  api: 'https://script.google.com/macros/s/AKfycbzR8zwtAG7IixofncUKo_2kdLFAS047XHGk7qUrIouqJDaU6abVwyfuu3Ld_RHTz565ZA/exec',
-  // api: 'https://script.google.com/macros/s/AKfycb…/exec',
-
-  /* ---- Claves del personal de dirección (acceso a TODOS los grupos) ----
-     Deben coincidir con las escritas en code.gs (constante CLAVES).
-     Solo sirven para entrar como rectoría / decanato / secretaría. */
-  claves: {
-    rector: 'rector-kmczyts',
-    decano: 'decano-sw7gfv3',
-    secretaria: 'secretaria-kmp9fke'
-  },
+  /* ---- Conexión con Supabase ---- */
+  api: 'https://rkeplircgzzaqmpnfrbd.supabase.co/functions/v1/canvas-api',
+  supabaseKey: 'sb_publishable_xjvD6DZ4KkluYDmD-NTIGQ_NxZC7tGL',
 
   /* ---- Foro de dudas (chat por asignatura) ----
      El profesor abre o cierra el foro de cada asignatura.
