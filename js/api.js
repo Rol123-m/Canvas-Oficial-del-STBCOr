@@ -5,6 +5,7 @@
    ============================================================ */
 window.API = {
   get demo() { return false; },
+  get hasSession() { return !!localStorage.getItem('canvas.supabase.session.v1'); },
   logout() { try { localStorage.removeItem('canvas.supabase.session.v1'); } catch {} },
   async call(action, payload = {}) {
     const cleanPayload = JSON.parse(JSON.stringify(payload || {}));
