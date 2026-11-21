@@ -47,7 +47,7 @@ const esDir = () => ['rector', 'decano', 'secretaria'].includes(rol());
 const esStaff = () => esProf() || esDir();
 const labelRol = r => ({ estudiante: 'Estudiante', profesor: 'Profesor', rector: 'Rectoría', decano: 'Decanato', secretaria: 'Secretaría' }[r] || r);
 const asig = () => S.asigs.find(a => a.id === S.asigId);
-function sesionPublica() { const { rol: r, nombre, usuario, grupo, codigo } = S.sesion; return { rol: r, nombre, usuario, grupo, codigo }; }
+function sesionPublica() { const { rol: r, nombre, usuario, grupo } = S.sesion; return { rol: r, nombre, usuario, grupo }; }
 const seen = () => { try { return JSON.parse(localStorage.getItem(KEYSEEN)) || []; } catch { return []; } };
 const unseen = () => S.anuncios.filter(a => !seen().includes(a.id)).length;
 const TIPOS = { contenido: ['Lectura', 'fa-book'], vocabulario: ['Vocabulario', 'fa-book-open'], recursos: ['Recursos', 'fa-folder-open'], enlace: ['Enlace', 'fa-link'] };
@@ -86,9 +86,9 @@ async function loadAsigData() {
   S.pestanas = p; S.examenes = x; S.matriculados = m; S.anuncios = a; S.progreso = g;
 }
 const authCod = () => esDir()
-  ? { rol: 'dir', codigo: S.sesion.codigo }
-  : { rol: 'prof', usuario: S.sesion.usuario, clave: S.sesion.clave };
-const sesionForo = () => ({ ...sesionPublica(), clave: S.sesion.clave || '' });
+  ? { rol: 'dir' }
+  : { rol: 'prof', usuario: S.sesion.usuario };
+const sesionForo = () => sesionPublica();
 
 /* ---------- login ---------- */
 let loginModo = 'est';
@@ -123,13 +123,13 @@ function bindLogin() {
     try {
       if (loginModo === 'est') {
         const d = await API.call('login', { u: $('#u').value.trim(), p: $('#p').value });
-        S.sesion = { rol: 'estudiante', nombre: d.nombre, grupo: d.grupo, usuario: d.usuario, clave: $('#p').value };
+        S.sesion = { rol: 'estudiante', nombre: d.nombre, grupo: d.grupo, usuario: d.usuario };
       } else if (loginModo === 'prof') {
         const d = await API.call('loginProfesor', { u: $('#u').value.trim(), p: $('#p').value });
-        S.sesion = { rol: 'profesor', nombre: d.nombre, usuario: d.usuario, clave: $('#p').value };
+        S.sesion = { rol: 'profesor', nombre: d.nombre, usuario: d.usuario };
       } else {
         const d = await API.call('loginStaff', { codigo: $('#c').value.trim() });
-        S.sesion = { rol: d.rol, nombre: d.nombre, codigo: $('#c').value.trim(), usuario: null };
+        S.sesion = { rol: d.rol, nombre: d.nombre, usuario: d.usuario || null };
       }
       localStorage.setItem(KEYS, JSON.stringify(S.sesion));
       S.asigId = null; await loadAsigs();
@@ -172,7 +172,7 @@ function shell() {
   <div class="layout"><aside class="side">${staffSide ? `<a href="#/asignaturas" data-r="asignaturas"><i class="fas fa-graduation-cap"></i>${esDir() ? 'Todas las asignaturas' : 'Mis asignaturas'}</a><h5>Asignatura</h5>${S.asigId ? STAFF_NAV.map(navLink).join('') : '<div class="mini">Selecciona o crea una asignatura para gestionarla.</div>'}<span class="grow"></span>` : `${navItems().map(navLink).join('')}<h5>Módulos</h5>${modulos.map(m => `<a href="#/modulo/${m.id}" data-r="modulo/${m.id}"><i class="fas ${esc(m.icono || 'fa-book')}"></i>${esc(m.titulo)}</a>`).join('')}<span class="grow"></span>`}
   <div class="mini">© ${esc(C.course)} · ${esc(C.school)}</div></aside><main id="view"></main></div>
   <nav class="bnav">${bnavLinks()}</nav>`;
-  $('#out').onclick = () => { localStorage.removeItem(KEYS); S.sesion = null; S.asigId = null; location.hash = ''; boot(); };
+  $('#out').onclick = () => { API.logout(); localStorage.removeItem(KEYS); S.sesion = null; S.asigId = null; location.hash = ''; boot(); };
   $('#asel') && ($('#asel').onchange = async e => { S.asigId = e.target.value; await loadAsigData(); shell(); route(); });
 }
 function bnavLinks() {
