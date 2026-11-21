@@ -147,6 +147,7 @@ async function boot() {
   document.documentElement.style.setProperty('--flame', C.tema.flame);
   document.documentElement.style.setProperty('--bg', C.tema.bg);
   if (!S.sesion) { try { S.sesion = JSON.parse(localStorage.getItem(KEYS)); } catch { S.sesion = null; } }
+  if (S.sesion && !API.hasSession) { S.sesion = null; localStorage.removeItem(KEYS); }
   if (!S.sesion) { $('#app').innerHTML = loginView(); bindLogin(); return; }
   try { await loadAsigs(); }
   catch (ex) { $('#app').innerHTML = `<div class="notice"><i class="fas fa-triangle-exclamation"></i> ${esc(ex.message)}</div>`; return; }
