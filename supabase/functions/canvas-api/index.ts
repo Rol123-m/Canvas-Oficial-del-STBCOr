@@ -138,10 +138,15 @@ async function handle(action: string, p: any, u: any) {
     case "login":
     case "loginProfesor":
     case "loginStaff": {
-      const username = action === "loginStaff" ? ({ rector: "rector", decano: "decano", secretaria: "secretaria" } as any)[clean(p.codigo).split("-")[0]] || "" : clean(p.u).toLowerCase();
+      const code = clean(p.codigo);
+      const prefix = code.split("-")[0];
+      const username = action === "loginStaff" ? prefix : clean(p.u).toLowerCase();
       const roleFilter = action === "login" ? ["estudiante"] : action === "loginProfesor" ? ["profesor"] : ["rector", "decano", "secretaria"];
-      let candidates = await rows("app_users", q => q.eq("username", username).in("role", roleFilter));
-      if (action === "loginStaff") candidates = await rows("app_users", q => q.in("role", roleFilter));
+      let candidates;
+      if (action === "loginStaff") {
+        if (!["rector", "decano", "secretaria"].includes(prefix)) fail("Clave de acceso no válida.");
+        candidates = await rows("app_users", q => q.eq("role", prefix).eq("status", "Activo"));
+      } else candidates = await rows("app_users", q => q.eq("username", username).in("role", roleFilter));
       const found = await (async () => { for (const x of candidates) if (await verifyPassword(clean(action === "loginStaff" ? p.codigo : p.p), x.password_hash)) return x; return null; })();
       if (!found || found.status !== "Activo") fail(action === "loginStaff" ? "Clave de acceso no válida." : "Usuario o contraseña incorrectos.");
       return await makeSession(found);
@@ -460,10 +465,10 @@ async function handle(action: string, p: any, u: any) {
     case "getChat": {
       await enrolled(u, p.asigId);
       const a = await subject(p.asigId);
-      let q = db.from("chat_messages").select("*").eq("subject_id", p.asigId).order("created_at", { ascending: true }).limit(120);
+      let q = db.from("chat_messages").select("*").eq("subject_id", p.asigId).order("created_at", { ascending: false }).limit(120);
       if (p.desde) q = q.gt("created_at", p.desde);
       const { data, error } = await q; if (error) throw error;
-      return { abierto: !!a.chat_open, mensajes: (data || []).map(m => ({ id: m.id, usuario: m.username, nombre: m.display_name, rol: m.role, texto: m.message, fecha: m.created_at })) };
+      return { abierto: !!a.chat_open, mensajes: (data || []).reverse().map(m => ({ id: m.id, usuario: m.username, nombre: m.display_name, rol: m.role, texto: m.message, fecha: m.created_at })) };
     }
     case "enviarChat": {
       const a = await subject(p.asigId);
@@ -472,7 +477,7 @@ async function handle(action: string, p: any, u: any) {
         await enrolled(u, p.asigId);
         if (!a.chat_open) fail("El foro está cerrado. Tu profesor lo abrirá cuando corresponda.");
       } else await subjectAccess(u, p.asigId);
-      const m = await insert("chat_messages", { id: uid("c"), subject_id: p.asigId, username: u.username, display_name: u.full_name, role: u.role, message: text });
+      const m = await insert("chat_messages", { id: uid("c"), subject_id: p.asigId, username: u.username, display_name: isDir(u) ? "Dirección" : u.full_name, role: isDir(u) ? "direccion" : u.role, message: text });
       return { mensaje: { id: m.id, usuario: m.username, nombre: m.display_name, rol: m.role, texto: m.message, fecha: m.created_at } };
     }
     case "eliminarMensaje": {
