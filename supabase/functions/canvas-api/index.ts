@@ -69,12 +69,6 @@ async function makeSession(user: any) {
   await insert("canvas_sessions", { token_hash: await tokenHash(token), user_id: user.id, expires_at: new Date(Date.now() + 7 * 86400000).toISOString() });
   return { token, nombre: user.full_name, usuario: user.username, grupo: user.group_name, rol: user.role, email: user.email || "" };
 }
-async function currentUser(req: Request) {
-  const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
-  if (!token) fail("Tu sesión ha caducado. Inicia sesión nuevamente.");
-  const sess = await one("canvas_sessions", q => q.eq("token_hash", tokenHashPlaceholder));
-  return sess;
-}
 async function authenticate(req: Request) {
   const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
   if (!token) fail("Tu sesión ha caducado. Inicia sesión nuevamente.");
@@ -226,7 +220,8 @@ async function handle(action: string, p: any, u: any) {
     }
     case "deleteProfesor": {
       requireDir(u);
-      await patch("subjects", clean(p.usuario), { professor_username: null, professor_name: "" }, "professor_username");
+      const { error: subjectError } = await db.from("subjects").update({ professor_username: null, professor_name: "" }).eq("professor_username", clean(p.usuario));
+      if (subjectError) throw subjectError;
       const pr = await one("app_users", q => q.eq("username", clean(p.usuario)).eq("role", "profesor"));
       if (pr) await remove("app_users", pr.id);
       return { ok: true };
