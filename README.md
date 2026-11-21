@@ -54,7 +54,7 @@ Para crear profesores, entra con una cuenta de dirección y usa **Añadir profes
 
 El proyecto se preparó para comenzar sin asignaturas de prueba. El padrón inicial contiene 72 estudiantes: 71 activos y 1 inactivo. Las asignaturas, matrículas, módulos, exámenes, preguntas, intentos, progreso, anuncios y mensajes comienzan vacíos.
 
-Para actualizar o volver a importar el padrón, entra como dirección, abre **Estudiantes (base) → Importar lista** y pega el contenido del CSV. El servidor vuelve a generar los hashes de las contraseñas; no guardes el CSV ni sus contraseñas en el repositorio público.
+Para actualizar o volver a importar el padrón, entra como dirección, abre **Estudiantes (base) → Importar lista** y pega el contenido del archivo CSV local que conservas. El servidor vuelve a generar los hashes de las contraseñas; no guardes el CSV ni sus contraseñas en el repositorio público.
 
 ## Desarrollo local
 
@@ -77,7 +77,6 @@ js/app.js
 supabase/
   functions/canvas-api/index.ts
   migrations/
-estudiantes.csv
 .gitignore
 ```
 
