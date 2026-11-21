@@ -3,9 +3,10 @@
 # ============================================================
 
 # --- CÓDIGO DEL SERVIDOR: no subir al repositorio ---
-# code.gs contiene las claves de la dirección y toda la lógica
-# del backend. Se gestiona directamente en Google Apps Script.
+# Los archivos de configuración privada y datos de acceso no se suben.
 code.gs
+estudiantes.csv
+*.csv
 .clasp.json
 *.gs
 
