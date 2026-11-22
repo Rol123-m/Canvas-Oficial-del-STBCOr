@@ -105,7 +105,7 @@ const mapSubject = (a: any) => ({ id: a.id, nombre: a.name, descripcion: a.descr
 const mapModule = (m: any) => ({ id: m.id, asignaturaId: m.subject_id, titulo: m.title, icono: m.icon, tipo: m.kind, contenido: m.content, orden: m.sort_order, visible: m.visible });
 const mapExam = (e: any) => ({ id: e.id, asignaturaId: e.subject_id, titulo: e.title, descripcion: e.description, visible: e.visible, creado: e.created_at });
 const mapQuestion = (q: any, reveal = false) => {
-  const x: any = { id: q.id, examenId: q.exam_id, tipo: q.kind, texto: q.prompt, opciones: q.options, puntos: Number(q.points), orden: q.sort_order };
+  const x: any = { id: q.id, examenId: q.exam_id, tipo: q.kind, texto: q.prompt, opciones: q.options, metadata: q.metadata || {}, puntos: Number(q.points), orden: q.sort_order };
   if (reveal) x.correcta = q.correct_answer;
   return x;
 };
@@ -426,7 +426,7 @@ async function handle(action: string, p: any, u: any) {
         id = uid("x");
         await insert("exams", { id, subject_id: ex.asignaturaId, title: ex.titulo, description: ex.descripcion || "", visible: ex.visible !== false });
       }
-      const qs = (ex.preguntas || []).map((q: any, i: number) => ({ id: uid("q"), exam_id: id, kind: q.tipo || "sm", prompt: q.texto || "", options: q.tipo === "vf" ? ["Verdadero", "Falso"] : (q.opciones || ["", "", "", ""]), correct_answer: Number(q.correcta || 0), points: Number(q.puntos || 1), sort_order: i + 1 }));
+      const qs = (ex.preguntas || []).map((q: any, i: number) => ({ id: uid("q"), exam_id: id, kind: q.tipo || "sm", prompt: q.texto || "", options: q.tipo === "vf" ? ["Verdadero", "Falso"] : (q.opciones || []), correct_answer: ["comprension", "red"].includes(q.tipo) ? 0 : (q.tipo === "emp" ? 0 : Number(q.correcta || 0)), metadata: q.metadata || {}, points: Number(q.puntos || 1), sort_order: i + 1 }));
       if (qs.length) { const { error } = await db.from("questions").insert(qs); if (error) throw error; }
       return { id };
     }
@@ -441,22 +441,55 @@ async function handle(action: string, p: any, u: any) {
       const qs = await rows("questions", q => q.eq("exam_id", ex.id).order("sort_order"));
       const answers = Array.isArray(p.respuestas) ? p.respuestas : [];
       let score = 0; const total = qs.reduce((s, q) => s + Number(q.points || 0), 0);
+      let pending = false;
       const detail = qs.map((q, i) => {
-        const selected = answers[i] === undefined || answers[i] === null ? null : Number(answers[i]);
-        const ok = selected !== null && selected === Number(q.correct_answer);
-        if (ok) score += Number(q.points || 0);
-        return { texto: q.prompt, eleccion: selected, correcta: Number(q.correct_answer), opciones: q.options, ok };
+        const raw = answers[i] ?? null, meta = q.metadata || {}, kind = q.kind;
+        let ok: boolean | null = false, earned = 0;
+        if (kind === "comprension" || kind === "red") { pending = true; ok = null; }
+        else if (kind === "sm" || kind === "vf") { const selected = raw === null ? null : Number(raw); ok = selected !== null && selected === Number(q.correct_answer); if (ok) earned = Number(q.points || 0); }
+        else if (kind === "emp") { const norm = (v: any) => String(v ?? "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase().trim().replace(/\\s+/g, " "); const accepted = (meta.accepted || [meta.correct_text || ""]).map((v: any) => norm(v)); ok = raw !== null && accepted.includes(norm(raw)); if (ok) earned = Number(q.points || 0); }
+        else if (kind === "rel") { const pairs = meta.pairs || []; const submitted = raw && typeof raw === "object" ? raw : {}; const matched = pairs.filter((pair: any) => String(submitted[pair.left] ?? "") === String(pair.right)); earned = pairs.length ? Number(q.points || 0) * matched.length / pairs.length : 0; ok = pairs.length > 0 && matched.length === pairs.length; }
+        score += earned;
+        return { preguntaId: q.id, tipo: kind, texto: q.prompt, respuesta: raw, opciones: q.options, metadata: meta, correcta: (kind === "sm" || kind === "vf") ? Number(q.correct_answer) : null, ok, puntos: Number(q.points || 0), obtenido: earned };
       });
-      await insert("exam_attempts", { id: uid("i"), exam_id: ex.id, student_username: u.username, student_name: u.full_name, score, total, answers });
+      const attempt = await insert("exam_attempts", { id: uid("i"), exam_id: ex.id, student_username: u.username, student_name: u.full_name, score, total, answers, review_status: pending ? "pending" : "graded" });
       const old = await one("progress", q => q.eq("subject_id", ex.subject_id).eq("student_username", u.username).eq("item_type", "examen").eq("item_id", ex.id));
       if (old) await patch("progress", old.id, { completed: true, updated_at: now() });
       else await insert("progress", { id: uid("g"), subject_id: ex.subject_id, student_username: u.username, student_name: u.full_name, item_type: "examen", item_id: ex.id, completed: true });
-      return { puntaje: score, total, pct: total ? Math.round(score / total * 100) : 0, detalle: detail };
+      return { intentoId: attempt.id, puntaje: score, total, pendienteRevision: pending, pct: total ? Math.round(score / total * 100) : 0, detalle: detail };
     }
     case "getIntentos": {
       const ex = await one("exams", q => q.eq("id", p.examenId)); if (!ex) fail("Examen no encontrado.");
       await subjectAccess(u, ex.subject_id);
-      return (await rows("exam_attempts", q => q.eq("exam_id", p.examenId).order("attempted_at", { ascending: false }))).map(x => ({ id: x.id, examenId: x.exam_id, usuario: x.student_username, nombre: x.student_name, fecha: x.attempted_at, puntaje: x.score, total: x.total }));
+      return (await rows("exam_attempts", q => q.eq("exam_id", p.examenId).order("attempted_at", { ascending: false }))).map(x => ({ id: x.id, examenId: x.exam_id, usuario: x.student_username, nombre: x.student_name, fecha: x.attempted_at, puntaje: x.score, total: x.total, estadoRevision: x.review_status || "graded", notaFinal: x.reviewed_score, comentario: x.feedback }));
+    }
+    case "getIntentoDetalle": {
+      const attempt = await one("exam_attempts", q => q.eq("id", p.intentoId)); if (!attempt) fail("Intento no encontrado.");
+      const ex = await one("exams", q => q.eq("id", attempt.exam_id)); if (!ex) fail("Examen no encontrado.");
+      await subjectAccess(u, ex.subject_id);
+      const qs = await rows("questions", q => q.eq("exam_id", ex.id).order("sort_order"));
+      return { intento: { id: attempt.id, examenId: ex.id, usuario: attempt.student_username, nombre: attempt.student_name, fecha: attempt.attempted_at, puntaje: Number(attempt.score), total: Number(attempt.total), estadoRevision: attempt.review_status || "graded", notaFinal: attempt.reviewed_score, comentario: attempt.feedback, respuestas: attempt.answers || [] }, preguntas: qs.map(q => mapQuestion(q, true)) };
+    }
+    case "revisarIntento": {
+      const attempt = await one("exam_attempts", q => q.eq("id", p.intentoId)); if (!attempt) fail("Intento no encontrado.");
+      const ex = await one("exams", q => q.eq("id", attempt.exam_id)); if (!ex) fail("Examen no encontrado.");
+      await subjectAccess(u, ex.subject_id);
+      if ((attempt.review_status || "graded") !== "pending") fail("Este intento ya fue revisado.");
+      const qs = await rows("questions", q => q.eq("exam_id", ex.id).order("sort_order"));
+      const answers = Array.isArray(attempt.answers) ? attempt.answers : [];
+      const autoScore = Number(attempt.score || 0);
+      let manualScore = 0, manualTotal = 0;
+      for (let i = 0; i < qs.length; i++) {
+        const q = qs[i]; if (q.kind !== "comprension" && q.kind !== "red") continue;
+        const max = Number(q.points || 0); manualTotal += max;
+        const item = (p.calificaciones || []).find((x: any) => x.preguntaId === q.id);
+        const awarded = Number(item?.puntos ?? 0);
+        if (!Number.isFinite(awarded) || awarded < 0 || awarded > max) fail("La puntuación de cada respuesta debe estar entre 0 y " + max + ".");
+        manualScore += awarded;
+      }
+      const finalScore = autoScore + manualScore;
+      await patch("exam_attempts", attempt.id, { reviewed_score: finalScore, review_status: "graded", reviewed_at: now(), reviewed_by: u.username, feedback: clean(p.comentario || "").slice(0, 4000) });
+      return { ok: true, puntaje: finalScore, total: Number(attempt.total), pct: Number(attempt.total) ? Math.round(finalScore / Number(attempt.total) * 100) : 0 };
     }
     case "getIntentosAsig": {
       await subjectAccess(u, p.asigId);
