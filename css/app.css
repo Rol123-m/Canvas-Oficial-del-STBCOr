@@ -318,3 +318,26 @@ main{min-width:0}
   .rowtools .btn{font-size:.8rem}
 }
 @media(hover:none){.side a:hover,.btn:hover{filter:none}}
+
+.student-progress-summary{display:flex;align-items:center;gap:1.2rem;margin-bottom:1rem}
+.sps-copy{flex:1;min-width:0}
+.sps-copy h3{margin:0 0 .25rem}
+.sps-copy p{font-size:.85rem;color:var(--mut);margin-bottom:.65rem}
+.sps-copy .bar{margin-bottom:.35rem}
+.student-progress-mobile{display:none}
+.student-progress-item{background:#fff;border:1px solid var(--line);border-radius:13px;padding:.85rem;box-shadow:var(--sh)}
+.spi-main b{display:block;font-size:.9rem;overflow-wrap:anywhere}
+.spi-main small{display:block;color:var(--mut);font-size:.73rem;margin-top:.12rem}
+.spi-foot{display:flex;justify-content:space-between;align-items:center;gap:.6rem;margin-top:.7rem}
+@media(max-width:860px){
+ .student-progress-summary{gap:.85rem}
+ .student-progress-desktop{display:none}
+ .student-progress-mobile{display:grid;gap:.65rem}
+}
+@media(max-width:560px){
+ .student-progress-summary{padding:.9rem;gap:.7rem}
+ .student-ring .ring{width:78px;height:78px}
+ .student-ring .ring b{width:62px;height:62px;font-size:1rem}
+ .sps-copy h3{font-size:.9rem}
+ .sps-copy p{font-size:.75rem}
+}
