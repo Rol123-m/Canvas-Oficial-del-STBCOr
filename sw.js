@@ -73,7 +73,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  const isShellAsset = /\\.(?:css|js|woff2|png|svg|webmanifest)$/i.test(url.pathname) || url.pathname.endsWith('/index.html');
+  const isShellAsset = /\.(?:css|js|woff2|png|svg|webmanifest)$/i.test(url.pathname) || url.pathname.endsWith('/index.html');
   if (!isShellAsset) return;
   event.respondWith((async () => {
     const cached = await caches.match(request);
