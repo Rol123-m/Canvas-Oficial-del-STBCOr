@@ -1,7 +1,7 @@
 {
   "id": "./",
   "name": "STBCOr Gestión de Aulas",
-  "short_name": "Gestión de Aulas",
+  "short_name": "STBCOr Aulas",
   "description": "Plataforma académica para gestionar asignaturas, módulos, evaluaciones y progreso del Seminario Teológico Bautista de Cuba Oriental.",
   "lang": "es",
   "dir": "ltr",
