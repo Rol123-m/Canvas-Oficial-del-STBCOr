@@ -503,29 +503,92 @@ async function handle(action: string, p: any, u: any) {
       const a = await one("announcements", q => q.eq("id", p.id)); if (!a) fail("Anuncio no encontrado.");
       await subjectAccess(u, a.subject_id); await remove("announcements", p.id); return { ok: true };
     }
+    case "getForo": {
+      await enrolled(u, p.asigId);
+      const a = await subject(p.asigId);
+      const { data: threads, error: te } = await db.from("forum_threads").select("*").eq("subject_id", p.asigId).order("updated_at", { ascending: false }).limit(100);
+      if (te) throw te;
+      const summaries = [];
+      for (const h of (threads || [])) {
+        const posts = await rows("forum_posts", q => q.eq("thread_id", h.id).order("created_at", { ascending: false }).limit(1));
+        const count = await rows("forum_posts", q => q.eq("thread_id", h.id));
+        const last = posts[0];
+        summaries.push({ id: h.id, titulo: h.title, estado: h.status, autorUsuario: h.author_username, autor: h.author_name, fecha: h.created_at, actualizado: h.updated_at, respuestas: Math.max(0, count.length - 1), ultimoTexto: last?.message || "", ultimoAutor: last?.display_name || "" });
+      }
+      let actual = null, mensajes = [];
+      if (p.threadId) {
+        const h = await one("forum_threads", q => q.eq("id", p.threadId).eq("subject_id", p.asigId));
+        if (!h) fail("La conversación no existe o pertenece a otra asignatura.");
+        actual = { id: h.id, titulo: h.title, estado: h.status, autorUsuario: h.author_username, autor: h.author_name, fecha: h.created_at };
+        mensajes = (await rows("forum_posts", q => q.eq("thread_id", h.id).order("created_at", { ascending: true }))).map(m => ({ id: m.id, usuario: m.username, nombre: m.display_name, rol: m.role, texto: m.message, fecha: m.created_at }));
+      }
+      return { abierto: !!a.chat_open, conversaciones: summaries, actual, mensajes };
+    }
+    case "crearConversacion": {
+      const a = await subject(p.asigId);
+      if (u.role === "estudiante") { await enrolled(u, p.asigId); if (!a.chat_open) fail("El foro está cerrado para nuevas conversaciones."); }
+      else await subjectAccess(u, p.asigId);
+      const title = clean(p.titulo).slice(0, 120), message = clean(p.texto).slice(0, 4000);
+      if (!title || !message) fail("Escribe un título y un mensaje inicial.");
+      const id = uid("h");
+      const h = await insert("forum_threads", { id, subject_id: p.asigId, title, author_username: u.username, author_name: u.full_name, status: "open" });
+      const m = await insert("forum_posts", { id: uid("fp"), thread_id: id, username: u.username, display_name: isDir(u) ? "Dirección" : u.full_name, role: isDir(u) ? "direccion" : u.role, message });
+      return { actual: { id: h.id, titulo: h.title, estado: h.status, autorUsuario: h.author_username, autor: h.author_name, fecha: h.created_at }, mensajes: [{ id: m.id, usuario: m.username, nombre: m.display_name, rol: m.role, texto: m.message, fecha: m.created_at }] };
+    }
+    case "responderConversacion": {
+      const h = await one("forum_threads", q => q.eq("id", p.threadId).eq("subject_id", p.asigId));
+      if (!h) fail("Conversación no encontrada.");
+      const a = await subject(p.asigId);
+      if (h.status !== "open") fail("Esta conversación ya fue finalizada.");
+      if (u.role === "estudiante") { await enrolled(u, p.asigId); if (!a.chat_open) fail("El foro está cerrado para nuevas respuestas."); }
+      else await subjectAccess(u, p.asigId);
+      const message = clean(p.texto).slice(0, 4000); if (!message) fail("Escribe una respuesta.");
+      const m = await insert("forum_posts", { id: uid("fp"), thread_id: h.id, username: u.username, display_name: isDir(u) ? "Dirección" : u.full_name, role: isDir(u) ? "direccion" : u.role, message });
+      await patch("forum_threads", h.id, { updated_at: now() });
+      return { mensaje: { id: m.id, usuario: m.username, nombre: m.display_name, rol: m.role, texto: m.message, fecha: m.created_at } };
+    }
+    case "cerrarConversacion": {
+      const h = await one("forum_threads", q => q.eq("id", p.threadId).eq("subject_id", p.asigId));
+      if (!h) fail("Conversación no encontrada.");
+      await subjectAccess(u, p.asigId);
+      await patch("forum_threads", h.id, { status: "closed", closed_at: now(), updated_at: now() });
+      return { ok: true };
+    }
+    case "eliminarConversacion": {
+      const h = await one("forum_threads", q => q.eq("id", p.threadId).eq("subject_id", p.asigId));
+      if (!h) fail("Conversación no encontrada.");
+      if (u.role === "estudiante") {
+        await enrolled(u, p.asigId);
+        if (h.author_username !== u.username) fail("Solo puedes eliminar conversaciones que hayas iniciado.");
+      } else await subjectAccess(u, p.asigId);
+      await remove("forum_threads", h.id);
+      return { ok: true };
+    }
+    case "eliminarRespuesta": {
+      const m = await one("forum_posts", q => q.eq("id", p.postId));
+      if (!m) fail("Respuesta no encontrada.");
+      const h = await one("forum_threads", q => q.eq("id", m.thread_id).eq("subject_id", p.asigId));
+      if (!h) fail("Conversación no encontrada.");
+      if (u.role === "estudiante") {
+        await enrolled(u, p.asigId);
+        if (m.username !== u.username) fail("Solo puedes eliminar tus propias respuestas.");
+      } else await subjectAccess(u, p.asigId);
+      await remove("forum_posts", m.id);
+      await patch("forum_threads", h.id, { updated_at: now() });
+      return { ok: true };
+    }
     case "getChat": {
       await enrolled(u, p.asigId);
       const a = await subject(p.asigId);
-      let q = db.from("chat_messages").select("*").eq("subject_id", p.asigId).order("created_at", { ascending: false }).limit(120);
-      if (p.desde) q = q.gt("created_at", p.desde);
-      const { data, error } = await q; if (error) throw error;
-      return { abierto: !!a.chat_open, mensajes: (data || []).reverse().map(m => ({ id: m.id, usuario: m.username, nombre: m.display_name, rol: m.role, texto: m.message, fecha: m.created_at })) };
+      const { data, error } = await db.from("chat_messages").select("*").eq("subject_id", p.asigId).order("created_at", { ascending: true }).limit(120);
+      if (error) throw error;
+      return { abierto: !!a.chat_open, mensajes: (data || []).map(m => ({ id: m.id, usuario: m.username, nombre: m.display_name, rol: m.role, texto: m.message, fecha: m.created_at })) };
     }
-    case "enviarChat": {
-      const a = await subject(p.asigId);
-      const text = clean(p.texto).slice(0, 1000); if (!text) fail("Escribe un mensaje.");
-      if (u.role === "estudiante") {
-        await enrolled(u, p.asigId);
-        if (!a.chat_open) fail("El foro está cerrado. Tu profesor lo abrirá cuando corresponda.");
-      } else await subjectAccess(u, p.asigId);
-      const m = await insert("chat_messages", { id: uid("c"), subject_id: p.asigId, username: u.username, display_name: isDir(u) ? "Dirección" : u.full_name, role: isDir(u) ? "direccion" : u.role, message: text });
-      return { mensaje: { id: m.id, usuario: m.username, nombre: m.display_name, rol: m.role, texto: m.message, fecha: m.created_at } };
-    }
+    case "enviarChat": fail("El foro ahora utiliza conversaciones independientes. Actualiza la página.");
     case "eliminarMensaje": {
       const m = await one("chat_messages", q => q.eq("id", p.id)); if (!m) fail("Mensaje no encontrado.");
-      if (u.role === "estudiante") {
-        if (m.username !== u.username) fail("Solo puedes eliminar tus propios mensajes.");
-      } else await subjectAccess(u, m.subject_id);
+      if (u.role === "estudiante") { if (m.username !== u.username) fail("Solo puedes eliminar tus propios mensajes."); }
+      else await subjectAccess(u, m.subject_id);
       await remove("chat_messages", p.id); return { ok: true };
     }
     case "setChatAbierto": {
