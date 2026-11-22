@@ -366,9 +366,21 @@ VIEW.anuncios = () => {
 VIEW.progreso = () => {
   if (esStaff()) return VIEW.matrizProgreso();
   const pr = progresoDe(S.sesion.usuario);
+  const modulos = S.pestanas.filter(x => x.visible !== false).map(m => {
+    const done = S.progreso.some(y => y.usuario === S.sesion.usuario && y.tipo === 'pestaña' && y.itemId === m.id && y.completado);
+    const estado = done ? '<span class="tag done">Completado</span>' : '<span class="tag prog">Pendiente</span>';
+    return { titulo: m.titulo, tipo: TIPOS[m.tipo]?.[0] || m.tipo, estado, url: '#/modulo/' + m.id, accion: 'Abrir', done };
+  });
+  const examenes = S.examenes.filter(x => x.visible !== false).map(x => {
+    const n = S.misNotas.filter(y => y.examenId === x.id);
+    const mejor = n.length ? Math.max(...n.map(y => y.puntaje)) : null, tot = n.length ? Math.max(...n.map(y => y.total)) : null;
+    return { titulo: x.titulo, tipo: 'Quiz', estado: mejor != null ? '<span class="tag done">' + mejor + '/' + tot + '</span>' : '<span class="tag prog">Sin intento</span>', url: '#/examen/' + x.id, accion: n.length ? 'Repetir' : 'Realizar', done: mejor != null };
+  });
+  const items = [...modulos, ...examenes];
+  const rows = items.map(x => `<article class="student-progress-item"><div class="spi-main"><b>${esc(x.titulo)}</b><small>${esc(x.tipo)}</small></div><div class="spi-foot">${x.estado}<a class="btn sec sm" href="${x.url}">${x.accion}</a></div></article>`).join('');
   return `<div class="ph"><h2>Mi progreso</h2><p>${esc(asig()?.nombre || '')}</p></div>
-  <div class="card" style="display:flex;gap:1.2rem;align-items:center;margin-bottom:1.2rem">${ring(pr.pct, 'dk')}<div><h3 style="margin:0">${pr.done} de ${pr.tot}</h3><p style="color:var(--mut);font-size:.9rem">Módulos completados y quizzes realizados.</p></div></div>
-  <div class="card tw"><table><thead><tr><th>Elemento</th><th>Tipo</th><th>Estado</th><th></th></tr></thead><tbody>
+  <div class="card student-progress-summary"><div class="student-ring">${ring(pr.pct, 'dk')}</div><div class="sps-copy"><h3>${pr.done} de ${pr.tot} completados</h3><p>Módulos completados y quizzes realizados.</p><div class="bar"><i style="width:${pr.pct}%"></i></div><b>${pr.pct}%</b></div></div>
+  <div class="card tw student-progress-desktop"><table><thead><tr><th>Elemento</th><th>Tipo</th><th>Estado</th><th></th></tr></thead><tbody>
   ${S.pestanas.filter(x => x.visible !== false).map(m => {
     const done = S.progreso.some(y => y.usuario === S.sesion.usuario && y.tipo === 'pestaña' && y.itemId === m.id && y.completado);
     return `<tr><td>${esc(m.titulo)}</td><td><span class="tag navy">${TIPOS[m.tipo]?.[0] || m.tipo}</span></td><td>${done ? '<span class="tag done">Completado</span>' : '<span class="tag prog">Pendiente</span>'}</td><td><a class="btn sec sm" href="#/modulo/${m.id}">Abrir</a></td></tr>`;
@@ -378,7 +390,8 @@ VIEW.progreso = () => {
     const mejor = n.length ? Math.max(...n.map(y => y.puntaje)) : null, tot = n.length ? Math.max(...n.map(y => y.total)) : null;
     return `<tr><td>${esc(x.titulo)}</td><td><span class="tag">Quiz</span></td><td>${mejor != null ? `<span class="tag done">${mejor}/${tot}</span>` : '<span class="tag prog">Sin intento</span>'}</td><td><a class="btn sec sm" href="#/examen/${x.id}">${n.length ? 'Repetir' : 'Realizar'}</a></td></tr>`;
   }).join('')}
-  </tbody></table></div>`;
+  </tbody></table></div>
+  <div class="student-progress-mobile">${rows || '<div class="empty"><i class="fas fa-book-open"></i>Aún no hay módulos ni quizzes disponibles.</div>'}</div>`;
 };
 
 /* ---------- foro de dudas (en vivo) ---------- */
