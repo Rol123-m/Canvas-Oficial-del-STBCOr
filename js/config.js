@@ -7,7 +7,7 @@ window.CONFIG = {
   app: 'STBCOr Gestión de Aulas',
   school: 'Seminario Teológico Bautista de Cuba Oriental',
   course: '2026–2027',
-  logo: 'assets/stbcor-gestion-icon.svg',
+  logo: 'assets/logo.png',
 
   /* ---- Conexión con Supabase ---- */
   api: 'https://rkeplircgzzaqmpnfrbd.supabase.co/functions/v1/canvas-api',
