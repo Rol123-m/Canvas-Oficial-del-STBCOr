@@ -178,8 +178,8 @@ function shell() {
 }
 function bnavLinks() {
   const L = esEst()
-    ? [['mis', 'fa-graduation-cap', 'Asignaturas'], ['modulos', 'fa-layer-group', 'Módulos'], ['examenes', 'fa-clipboard-check', 'Quizzes'], ['foro', 'fa-comments', 'Foro']]
-    : [['asignaturas', 'fa-graduation-cap', 'Asignaturas'], ['modulos', 'fa-layer-group', 'Módulos'], ['examenes', 'fa-clipboard-check', 'Exámenes'], ['foro', 'fa-comments', 'Foro']];
+    ? [['mis', 'fa-graduation-cap', 'Asignaturas'], ['modulos', 'fa-layer-group', 'Módulos'], ['examenes', 'fa-clipboard-check', 'Quizzes'], ['progreso', 'fa-chart-line', 'Progreso']]
+    : [['resumen', 'fa-gauge-high', 'Resumen'], ['modulos', 'fa-layer-group', 'Módulos'], ['estudiantes', 'fa-user-graduate', 'Alumnos'], ['progreso', 'fa-chart-line', 'Progreso']];
   return L.map(navLink).join('') + `<a href="#/mas" data-act="mas"><i class="fas fa-ellipsis"></i>Más</a>`;
 }
 
@@ -771,17 +771,32 @@ VIEW.matrizProgreso = () => {
   const ms = S.pestanas, xs = S.examenes;
   const notas = {};
   (S.intentosAsig || []).forEach(i => { const o = notas[i.usuario] || (notas[i.usuario] = {}); if (o[i.examenId] == null || i.puntaje > o[i.examenId]) o[i.examenId] = i.puntaje; });
+  const alumnos = [...S.matriculados].sort((a, b) => a.grupo.localeCompare(b.grupo) || a.nombre.localeCompare(b.nombre));
+  const detalleMovil = alumnos.map(m => {
+    const pr = progresoDe(m.usuario);
+    const modulos = ms.map(mm => {
+      const ok = S.progreso.some(y => y.usuario === m.usuario && y.tipo === 'pestaña' && y.itemId === mm.id && y.completado);
+      return `<div class="progress-item"><span class="pi-icon"><i class="fas ${esc(mm.icono || 'fa-book')}"></i></span><span class="pi-name">${esc(mm.titulo)}</span><span class="pi-state ${ok ? 'is-done' : 'is-pending'}">${ok ? '<i class="fas fa-check"></i> Hecho' : 'Pendiente'}</span></div>`;
+    }).join('');
+    const examenes = xs.map(x => {
+      const v = notas[m.usuario]?.[x.id];
+      return `<div class="progress-item"><span class="pi-icon"><i class="fas fa-clipboard-check"></i></span><span class="pi-name">${esc(x.titulo)}</span><span class="pi-state ${v != null ? 'is-done' : 'is-pending'}">${v != null ? esc(v + ' pts') : 'Pendiente'}</span></div>`;
+    }).join('');
+    return `<article class="progress-student"><div class="ps-head"><div class="ps-person"><span class="ps-avatar">${esc(inicial(m.nombre))}</span><div><b>${esc(m.nombre)}</b><small>${esc(m.grupo || 'Sin grupo')}</small></div></div><div class="ps-percent"><b>${pr.pct}%</b><small>${pr.done} de ${pr.tot}</small></div></div><div class="bar ps-bar"><i style="width:${pr.pct}%"></i></div><div class="ps-details">${modulos || ''}${examenes || ''}${!ms.length && !xs.length ? '<p class="muted">Todavía no hay módulos ni exámenes.</p>' : ''}</div></article>`;
+  }).join('');
   return `<div class="ph"><h2>Progreso del grupo</h2><p>${esc(asig()?.nombre || '')} · ${S.matriculados.length} estudiantes</p></div>
+  <div class="progress-summary"><div><span>Estudiantes</span><b>${S.matriculados.length}</b></div><div><span>Módulos</span><b>${ms.length}</b></div><div><span>Exámenes</span><b>${xs.length}</b></div></div>
   <div class="rowtools"><button class="btn sm" data-act="csvmx"><i class="fas fa-file-csv"></i> Exportar CSV</button></div>
-  <div class="card tw"><table class="mx"><thead><tr><th>Estudiante</th>${ms.map(m => `<th title="${esc(m.titulo)}"><i class="fas ${esc(m.icono || 'fa-book')}"></i> ${esc(m.titulo.length > 12 ? m.titulo.slice(0, 11) + '…' : m.titulo)}</th>`).join('')}${xs.map(x => `<th title="${esc(x.titulo)}"><i class="fas fa-clipboard-check"></i> ${esc(x.titulo.length > 12 ? x.titulo.slice(0, 11) + '…' : x.titulo)}</th>`).join('')}<th>Total</th></tr></thead><tbody>
-  ${[...S.matriculados].sort((a, b) => a.grupo.localeCompare(b.grupo) || a.nombre.localeCompare(b.nombre)).map(m => {
+  <div class="card tw progress-desktop"><table class="mx"><thead><tr><th>Estudiante</th>${ms.map(m => `<th title="${esc(m.titulo)}"><i class="fas ${esc(m.icono || 'fa-book')}"></i> ${esc(m.titulo.length > 12 ? m.titulo.slice(0, 11) + '…' : m.titulo)}</th>`).join('')}${xs.map(x => `<th title="${esc(x.titulo)}"><i class="fas fa-clipboard-check"></i> ${esc(x.titulo.length > 12 ? x.titulo.slice(0, 11) + '…' : x.titulo)}</th>`).join('')}<th>Total</th></tr></thead><tbody>
+  ${alumnos.map(m => {
     const pr = progresoDe(m.usuario);
     return `<tr><td><b>${esc(m.nombre)}</b><small style="display:block;color:var(--mut)">${esc(m.grupo)}</small></td>
     ${ms.map(mm => `<td>${S.progreso.some(y => y.usuario === m.usuario && y.tipo === 'pestaña' && y.itemId === mm.id && y.completado) ? '<i class="fas fa-circle-check ck"></i>' : '<i class="fas fa-circle nc"></i>'}</td>`).join('')}
     ${xs.map(x => { const v = notas[m.usuario]?.[x.id]; return `<td>${v != null ? v + ' pts' : '<i class="fas fa-circle nc"></i>'}</td>`; }).join('')}
     <td style="min-width:110px"><b>${pr.pct}%</b><div class="bar"><i style="width:${pr.pct}%"></i></div></td></tr>`;
   }).join('') || '<tr><td colspan="99" style="text-align:center;color:var(--mut)">Sin matriculados.</td></tr>'}
-  </tbody></table></div>`;
+  </tbody></table></div>
+  <div class="progress-mobile">${detalleMovil || '<div class="empty"><i class="fas fa-users"></i>No hay estudiantes matriculados.</div>'}</div>`;
 };
 VIEW.estudiantes = () => `<div class="ph"><h2>Estudiantes de la asignatura</h2><p>${esc(asig()?.nombre || '')} · ${S.matriculados.length} matriculados</p></div>
 <div class="rowtools"><button class="btn" data-act="matgrupo"><i class="fas fa-users"></i> Añadir grupo completo</button>
