@@ -371,11 +371,25 @@ VIEW.examen = id => {
     const meta = q.metadata || {};
     let field = '';
     if (q.tipo === 'sm' || q.tipo === 'vf') field = `<div class="vopts">${q.opciones.map((o, k) => `<label class="opt"><input type="radio" name="q${i}" value="${k}" required>${esc(o)}</label>`).join('')}</div>`;
-    else if (q.tipo === 'emp') field = `<input type="text" name="q${i}" required placeholder="Escribe tu respuesta">`;
-    else if (q.tipo === 'rel') field = `<div class="grid">${(meta.leftItems || []).map((left, j) => `<label class="fld">${esc(left)}<select name="q${i}_${j}" required><option value="">Selecciona…</option>${(meta.rightOptions || []).map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('')}</select></label>`).join('')}</div>`;
+    else if (q.tipo === 'emp') {
+      const n = Math.max(meta.blanks?.length || 0, meta.accepted?.length ? 1 : 0, (q.texto?.match(/\\{\\{\\d+\\}\\}/g) || []).length, 1);
+      const markers = /\\{\\{(\\d+)\\}\\}/g;
+      const seen = new Set();
+      const prompt = (q.texto || '').replace(markers, (token, number) => { const j = Number(number) - 1; if (j < 0 || j >= n) return esc(token); seen.add(j); return `<input class="blank-inline" type="text" name="q${i}_blank${j}" maxlength="500" required aria-label="Respuesta ${j+1}" placeholder="(${j+1})">`; });
+      const extra = seen.size ? '' : Array.from({length:n}, (_,j) => `<label class="blank-field"><span>Espacio ${j+1}</span><input type="text" name="q${i}_blank${j}" maxlength="500" required placeholder="Escribe la respuesta ${j+1}"></label>`).join('');
+      field = `<div class="fill-answer">${extra}<small>Completa todos los espacios. Se aceptan las variantes indicadas en la evaluación.</small></div>`;
+      q._renderedPrompt = esc(prompt).replace(/&lt;input/g, '<input').replace(/&gt;/g, '>'); 
+    }
+    else if (q.tipo === 'rel') {
+      const leftItems = meta.leftItems || meta.pairs?.map(p => p.left) || [];
+      const rightOptions = meta.rightOptions || meta.pairs?.map(p => p.right) || [];
+      const shuffled = rightOptions.map((label,k)=>({label,index:k})).sort(()=>Math.random()-.5);
+      field = `<div class="matching-list">${leftItems.map((left,j) => `<label class="matching-row"><span>${esc(left)}</span><select name="q${i}_${j}" required><option value="">Selecciona correspondencia…</option>${shuffled.map(o => `<option value="pair:${o.index}">${esc(o.label)}</option>`).join('')}</select></label>`).join('')}</div><small>Utiliza cada correspondencia una sola vez.</small>`;
+    }
     else if (q.tipo === 'comprension' || q.tipo === 'red') field = `<div class="fld answer-writing"><label for="q${i}">Tu respuesta escrita</label><textarea id="q${i}" name="q${i}" rows="9" minlength="10" maxlength="12000" required placeholder="Escribe aquí tu respuesta completa. Puedes desarrollar tus ideas, justificar tu análisis y citar el texto cuando corresponda."></textarea><small>Esta respuesta quedará guardada y será revisada por el profesor.</small></div>`;
     else field = `<textarea name="q${i}" rows="5" required placeholder="Escribe tu respuesta…"></textarea>`;
-    return `<div class="q"><h4>${i + 1}. ${esc(q.texto)} <span class="pts">· ${q.puntos} puntos · ${['comprension','red'].includes(q.tipo) ? 'Revisión docente' : 'Automática'}</span></h4>${field}</div>`;
+    const promptHtml = q.tipo === 'emp' ? (q._renderedPrompt || esc(q.texto)) : esc(q.texto);
+    return `<div class="q"><h4>${i + 1}. ${promptHtml} <span class="pts">· ${q.puntos} puntos · ${['comprension','red'].includes(q.tipo) ? 'Revisión docente' : 'Automática'}</span></h4>${field}</div>`;
   }).join('')}</div>
   <button class="btn" type="submit"><i class="fas fa-paper-plane"></i> Enviar examen</button> <button class="btn sec" type="button" data-act="cancelex"><i class="fas fa-xmark"></i> Cancelar</button></form>`;
 };
@@ -494,7 +508,8 @@ BIND.examen = id => {
       const ex = await API.call('getExamen', { id });
       const respuestas = ex.preguntas.map((q, i) => {
         if (q.tipo === 'sm' || q.tipo === 'vf') { const v = f.querySelector(`input[name=q${i}]:checked`); return v ? Number(v.value) : null; }
-        if (q.tipo === 'rel') { const value = {}; (q.metadata?.leftItems || []).forEach((left, j) => { value[left] = f.querySelector(`[name="q${i}_${j}"]`)?.value || ''; }); return value; }
+        if (q.tipo === 'rel') { const value = {}; (q.metadata?.leftItems || q.metadata?.pairs?.map(p => p.left) || []).forEach((left, j) => { value[left] = f.querySelector(`[name="q${i}_${j}"]`)?.value || ''; }); return value; }
+        if (q.tipo === 'emp') { const n = Math.max(q.metadata?.blanks?.length || 0, q.metadata?.accepted?.length ? 1 : 0, (q.texto?.match(/\\{\\{\\d+\\}\\}/g) || []).length, 1); return Array.from({length:n}, (_,j) => f.querySelector(`[name="q${i}_blank${j}"]`)?.value || ''); }
         return f.querySelector(`[name=q${i}]`)?.value || '';
       });
       S.resExamen = await API.call('enviarIntento', { examenId: id, respuestas });
@@ -812,8 +827,8 @@ function qcardHtml(q, i) {
   const ops = type === 'vf' ? ['Verdadero','Falso'] : (q.opciones || ['','','','']);
   let detail = '';
   if (type === 'sm' || type === 'vf') detail = `<div class="opts">${ops.map((o,k)=>`<div><input type="radio" name="c${i}" data-f="correcta" value="${k}" ${q.correcta===k?'checked':''}><input type="text" data-oi="${k}" data-f="opt" value="${esc(o)}" placeholder="Opción ${k+1}" ${type==='vf'?'disabled':''}></div>`).join('')}</div><small>Selecciona la respuesta correcta.</small>`;
-  else if (type === 'emp') detail = `<div class="fld"><label>Respuesta(s) correcta(s), separadas por |</label><input data-f="accepted" value="${esc((meta.accepted||[]).join(' | '))}" placeholder="λόγος | logos"></div>`;
-  else if (type === 'rel') detail = `<div class="fld"><label>Pares correctos (una línea por par: elemento izquierdo | correspondencia)</label><textarea data-f="pairs" rows="5">${esc((meta.pairs||[]).map(p=>p.left+' | '+p.right).join('\n'))}</textarea></div>`;
+  else if (type === 'emp') detail = `<div class="fld"><label>Respuestas aceptadas (una línea por espacio; alternativas separadas por |)</label><textarea data-f="blankAnswers" rows="4" placeholder="λόγος | logos\nθεός | theos">${esc((meta.blanks || (meta.accepted?.length ? [meta.accepted] : [])).map(a => a.join(' | ')).join('\\n'))}</textarea><small>En el enunciado usa {{1}}, {{2}}, etc. Cada marcador crea un espacio. Sin marcadores se muestra un solo espacio al final. Mayúsculas y espacios variables no afectan; los acentos sí.</small></div>`;
+  else if (type === 'rel') detail = `<div class="fld"><label>Pares correctos (una línea por par: elemento izquierdo | correspondencia)</label><textarea data-f="pairs" rows="5" placeholder="Columna A | Correspondencia 1\nColumna B | Correspondencia 2">${esc((meta.pairs||[]).map(p=>p.left+' | '+p.right).join('\\n'))}</textarea><small>Cada correspondencia se puede utilizar una sola vez. Escribe dos columnas separadas por |.</small></div>`;
   else detail = `<div class="fld"><label>Orientación / criterios para el profesor</label><textarea data-f="rubric" rows="3">${esc(meta.rubric||'')}</textarea><small>La respuesta del estudiante será evaluada manualmente.</small></div>`;
   return `<div class="qcard" data-qi="${i}"><div class="qh"><b>Pregunta ${i+1}</b><span class="grow"></span>${i>0?'<button type="button" class="ibtn" data-act="qup"><i class="fas fa-chevron-up"></i></button>':''}${i<S.editQs.length-1?'<button type="button" class="ibtn" data-act="qdown"><i class="fas fa-chevron-down"></i></button>':''}<button type="button" class="ibtn" data-act="qdel"><i class="fas fa-trash"></i></button></div>
   <div style="display:flex;gap:.6rem;flex-wrap:wrap"><select data-f="tipo" style="max-width:260px"><option value="sm" ${type==='sm'?'selected':''}>Selección múltiple</option><option value="vf" ${type==='vf'?'selected':''}>Verdadero / Falso</option><option value="emp" ${type==='emp'?'selected':''}>Completar (automática)</option><option value="rel" ${type==='rel'?'selected':''}>Relacionar (automática)</option><option value="comprension" ${type==='comprension'?'selected':''}>Comprensión (profesor)</option><option value="red" ${type==='red'?'selected':''}>Desarrollo (profesor)</option></select><input type="number" data-f="puntos" min="0.25" max="100" step="0.25" style="max-width:120px" value="${q.puntos||2}" title="Puntos"></div>
@@ -1035,7 +1050,7 @@ BIND['examen-editar'] = () => {
     if (el.dataset.f === 'texto') q.texto = el.value;
     if (el.dataset.f === 'puntos') q.puntos = +el.value || 1;
     if (el.dataset.f === 'opt') { q.opciones = q.opciones || ['', '', '', '']; q.opciones[+el.dataset.oi] = el.value; }
-    if (el.dataset.f === 'accepted') { q.metadata = q.metadata || {}; q.metadata.accepted = el.value.split('|').map(x => x.trim()).filter(Boolean); }
+    if (el.dataset.f === 'blankAnswers') { q.metadata = q.metadata || {}; q.metadata.blanks = el.value.split('\\n').map(line => line.split('|').map(x => x.trim()).filter(Boolean)).filter(x => x.length); delete q.metadata.accepted; }
     if (el.dataset.f === 'pairs') { q.metadata = q.metadata || {}; q.metadata.pairs = el.value.split('\n').map(line => line.split('|').map(x => x.trim())).filter(x => x.length >= 2 && x[0] && x[1]).map(x => ({left:x[0],right:x[1]})); q.metadata.leftItems = q.metadata.pairs.map(x=>x.left); q.metadata.rightOptions = q.metadata.pairs.map(x=>x.right); }
     if (el.dataset.f === 'rubric') { q.metadata = q.metadata || {}; q.metadata.rubric = el.value; }
   });
