@@ -4,6 +4,7 @@
   let installPrompt = null;
   let registration = null;
   let reloading = false;
+  let hadController = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
 
   const ui = document.createElement('div');
   ui.id = 'pwa-tools';
@@ -73,7 +74,7 @@
       }
     });
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (reloading) return;
+      if (!hadController || reloading) return;
       reloading = true;
       window.location.reload();
     });
