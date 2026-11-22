@@ -50,7 +50,7 @@ const asig = () => S.asigs.find(a => a.id === S.asigId);
 function sesionPublica() { const { rol: r, nombre, usuario, grupo } = S.sesion; return { rol: r, nombre, usuario, grupo }; }
 const seen = () => { try { return JSON.parse(localStorage.getItem(KEYSEEN)) || []; } catch { return []; } };
 const unseen = () => S.anuncios.filter(a => !seen().includes(a.id)).length;
-const TIPOS = { contenido: ['Lectura', 'fa-book'], vocabulario: ['Vocabulario', 'fa-book-open'], recursos: ['Recursos', 'fa-folder-open'], enlace: ['Enlace', 'fa-link'] };
+const TIPOS = { contenido: ['Lectura', 'fa-book'], leccion: ['Lección', 'fa-graduation-cap'], vocabulario: ['Vocabulario', 'fa-book-open'], recursos: ['Recursos', 'fa-folder-open'], enlace: ['Enlace', 'fa-link'] };
 const notaTxt = n => n ? `${n.puntaje}/${n.total} (${n.total ? Math.round(n.puntaje / n.total * 100) : 0}%)` : null;
 
 /* progreso (espejo de la lógica del servidor) */
@@ -240,6 +240,16 @@ const docHtml = txt => String(txt || '').split(/\n\n+/).map(b => {
   return html + (ul ? '</ul>' : '');
 }).join('');
 const vocabHtml = c => { try { const f = (JSON.parse(c).filas || []); return `<div class="vw-grid">${f.map(r => `<div class="vw"><span class="vw-g gk">${esc(r[0])}</span><span class="vw-e">${esc(r[1] || '')}</span>${r[2] ? `<small>${esc(r[2])}</small>` : ''}</div>`).join('')}</div>`; } catch { return '<p>Sin datos.</p>'; } };
+const leccionHtml = c => { try {
+  const data = JSON.parse(c), pages = data.paginas || [];
+  const cards = pages.map((p, i) => {
+    const url = String(p.src || '').replace(/^\\/+/, '');
+    const safe = /^contenido\\/leccion\\d+\\/[A-Za-z0-9_ .-]+\\.html$/i.test(url) || /^assets\\/[A-Za-z0-9_.-]+\\.pdf$/i.test(url);
+    const href = safe ? 'https://rol123-m.github.io/Curso-de-Griego-del-STBCOr.-/' + url.split('/').map(encodeURIComponent).join('/') : '';
+    return '<article class="card lesson-page"><span class="tag navy">Parte ' + (i + 1) + '</span><h3>' + esc(p.t || 'Material de estudio') + '</h3>' + (href ? '<a class="btn sec" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-up-right-from-square"></i> Abrir lección</a>' : '<span class="tag">Ruta no válida</span>') + '</article>';
+  }).join('');
+  return '<section class="lesson-intro card"><div class="lesson-time"><i class="fas fa-clock"></i> ' + Number(data.min || 0) + ' min</div><p>' + esc(data.desc || '') + '</p></section><div class="grid gA lesson-pages">' + cards + '</div>';
+} catch { return '<p>No se pudo interpretar el contenido de esta lección.</p>'; } };
 const recursosHtml = c => { try {
   const it = (JSON.parse(c).items || []);
   return `<div class="grid gA">${it.map(r => {
@@ -322,7 +332,7 @@ VIEW.modulos = () => {
 VIEW.modulo = id => {
   const m = S.pestanas.find(x => x.id === id); if (!m) return '<div class="notice">Módulo no encontrado.</div>';
   const done = S.progreso.some(y => y.usuario === S.sesion.usuario && y.tipo === 'pestaña' && y.itemId === m.id && y.completado);
-  const cuerpo = m.tipo === 'vocabulario' ? vocabHtml(m.contenido) : m.tipo === 'recursos' ? recursosHtml(m.contenido) : m.tipo === 'enlace'
+  const cuerpo = m.tipo === 'leccion' ? leccionHtml(m.contenido) : m.tipo === 'vocabulario' ? vocabHtml(m.contenido) : m.tipo === 'recursos' ? recursosHtml(m.contenido) : m.tipo === 'enlace'
     ? `<div class="card" style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0">Recurso externo</h3><p style="color:var(--mut);font-size:.9rem">${esc(m.contenido || '')}</p></div><a class="btn" href="${esc(m.contenido || '#')}" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i> Abrir</a></div>`
     : `<div class="doc">${docHtml(m.contenido)}</div>`;
   return `<div class="ph"><h2>${esc(m.titulo)}</h2><p><span class="tag navy"><i class="fas ${esc(m.icono || 'fa-book')}"></i> ${TIPOS[m.tipo]?.[0] || m.tipo}</span></p></div>
@@ -511,6 +521,7 @@ BIND.foro = id => {
    ============================================================ */
 const HINTS = {
   contenido: { l: 'Contenido', p: 'Párrafos separados por línea en blanco.\n## Título de sección\n- elemento de lista' },
+  leccion: { l: 'Datos de la lección (JSON)', p: '{ "min": 45, "desc": "Descripción", "paginas": [{ "t": "Página 1", "src": "contenido/leccion1/alfabeto.html" }] }' },
   vocabulario: { l: 'Palabras', p: 'Una por línea: término | significado | dato gramatical' },
   recursos: { l: 'Recursos', p: 'Uno por línea: título | descripción | url | texto del botón' },
   enlace: { l: 'URL', p: '' }
