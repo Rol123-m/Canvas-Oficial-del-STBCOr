@@ -342,7 +342,7 @@ VIEW.modulo = id => {
 };
 VIEW.examenes = () => {
   if (esStaff()) return VIEW.gestionExamenes();
-  return `<div class="ph"><h2>Exámenes</h2><p>Cuatro evaluaciones semanales. Cada examen permite una sola entrega; las preguntas objetivas se califican automáticamente y comprensión queda pendiente de revisión docente.</p></div>
+  return `<div class="ph"><h2>Exámenes</h2><p>Cuatro evaluaciones semanales. Cada examen permite una sola entrega; las preguntas objetivas se califican automáticamente y la redacción queda pendiente de revisión docente.</p></div>
   <div class="grid gA">${S.examenes.filter(x => x.visible !== false).map(x => {
     const mis = S.misNotas.filter(n => n.examenId === x.id);
     const mejor = mis.length ? Math.max(...mis.map(n => n.puntaje)) : null;
@@ -365,7 +365,7 @@ VIEW.examen = id => {
   }
   const previous = S.misNotas.find(n => n.examenId === id);
   if (previous) return `<div class="ph"><h2>${esc(x.titulo)}</h2><p>Este examen ya fue entregado. Cada estudiante dispone de una sola oportunidad.</p></div>
-    <div class="card"><h3>${previous.estadoRevision === 'pending' ? 'Pendiente de revisión del profesor' : 'Calificación final'}</h3><p>${previous.estadoRevision === 'pending' ? 'La parte automática se ha calificado. La nota definitiva aparecerá cuando el profesor revise las respuestas de comprensión.' : (previous.puntaje + ' / ' + previous.total + ' puntos')}</p><a class="btn sec" href="#/examenes">Volver a exámenes</a></div>`;
+    <div class="card"><h3>${previous.estadoRevision === 'pending' ? 'Pendiente de revisión del profesor' : 'Calificación final'}</h3><p>${previous.estadoRevision === 'pending' ? 'La parte automática se ha calificado. La nota definitiva aparecerá cuando el profesor revise las respuestas de redacción.' : (previous.puntaje + ' / ' + previous.total + ' puntos')}</p><a class="btn sec" href="#/examenes">Volver a exámenes</a></div>`;
   return `<div class="ph"><h2>${esc(x.titulo)}</h2><p>${esc(x.descripcion || '')}</p></div>
   <form id="xf"><div class="card" style="margin-bottom:1.1rem">${x.preguntas.map((q, i) => {
     const meta = q.metadata || {};
@@ -510,7 +510,7 @@ BIND.examen = id => {
       S.resExamen = await API.call('enviarIntento', { examenId: id, respuestas });
       await loadAsigData();
       $('#view').innerHTML = VIEW.examen(id); BIND.examen(id); window.scrollTo(0, 0);
-      toast(S.resExamen.pendienteRevision ? 'Parte automática corregida. Comprensión pendiente de revisión.' : 'Examen calificado: ' + S.resExamen.puntaje + '/' + S.resExamen.total);
+      toast(S.resExamen.pendienteRevision ? 'Parte automática corregida. Redacción pendiente de revisión.' : 'Examen calificado: ' + S.resExamen.puntaje + '/' + S.resExamen.total);
     } catch (ex2) { toast(ex2.message); btn.disabled = false; }
   };
 };
