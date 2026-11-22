@@ -341,3 +341,17 @@ main{min-width:0}
  .sps-copy h3{font-size:.9rem}
  .sps-copy p{font-size:.75rem}
 }
+
+/* Foro por conversaciones */
+.forum-top,.forum-thread-head,.forum-actions,.forum-detail-head{display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap}
+.forum-new{margin-bottom:1.25rem}
+.forum-new h3{margin-top:0}
+.forum-thread{display:flex;flex-direction:column;gap:.7rem}
+.forum-thread h3{margin:.4rem 0;font-size:1.05rem}
+.forum-thread small,.forum-detail .muted{color:var(--mut)}
+.forum-last{color:var(--mut);font-size:.9rem;margin:0;overflow-wrap:anywhere}
+.forum-detail{margin-bottom:1.2rem}
+.forum-detail>h3{margin:1rem 0 .3rem}
+.forum-detail .fmsgbox{margin:1rem 0}
+.tag.closed{background:#f3e7e7;color:#8a2f3c}
+@media(max-width:560px){.forum-thread-head{align-items:flex-start}.forum-actions{width:100%}.forum-actions .btn,.forum-actions .btn.sec{flex:1}.forum-detail-head{align-items:flex-start}}
