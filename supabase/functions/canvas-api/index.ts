@@ -506,8 +506,19 @@ async function handle(action: string, p: any, u: any) {
     case "getForo": {
       await enrolled(u, p.asigId);
       const a = await subject(p.asigId);
-      const { data: threads, error: te } = await db.from("forum_threads").select("*").eq("subject_id", p.asigId).order("updated_at", { ascending: false }).limit(100);
+      const { data: foundThreads, error: te } = await db.from("forum_threads").select("*").eq("subject_id", p.asigId).order("updated_at", { ascending: false }).limit(100);
       if (te) throw te;
+      let threads = foundThreads || [];
+      // Migra el chat antiguo a una conversación histórica, sin perder mensajes.
+      if (!threads.length) {
+        const legacy = await rows("chat_messages", q => q.eq("subject_id", p.asigId).order("created_at", { ascending: true }));
+        if (legacy.length) {
+          const first = legacy[0], id = uid("h");
+          const h = await insert("forum_threads", { id, subject_id: p.asigId, title: "Historial del foro de dudas", author_username: first.username, author_name: first.display_name, status: "closed" });
+          for (const old of legacy) await insert("forum_posts", { id: uid("fp"), thread_id: id, username: old.username, display_name: old.display_name, role: old.role, message: old.message, created_at: old.created_at });
+          threads = [h];
+        }
+      }
       const summaries = [];
       for (const h of (threads || [])) {
         const posts = await rows("forum_posts", q => q.eq("thread_id", h.id).order("created_at", { ascending: false }).limit(1));
@@ -560,6 +571,8 @@ async function handle(action: string, p: any, u: any) {
       if (u.role === "estudiante") {
         await enrolled(u, p.asigId);
         if (h.author_username !== u.username) fail("Solo puedes eliminar conversaciones que hayas iniciado.");
+        const replies = await rows("forum_posts", q => q.eq("thread_id", h.id).neq("username", u.username));
+        if (replies.length) fail("Esta conversación ya tiene respuestas de otros participantes. Pide al profesor que la elimine.");
       } else await subjectAccess(u, p.asigId);
       await remove("forum_threads", h.id);
       return { ok: true };
