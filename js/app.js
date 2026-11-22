@@ -369,7 +369,7 @@ VIEW.examen = id => {
   return `<div class="ph"><h2>${esc(x.titulo)}</h2><p>${esc(x.descripcion || '')}</p></div>
   <form id="xf"><div class="card" style="margin-bottom:1.1rem">${x.preguntas.map((q, i) => {
     const meta = q.metadata || {};
-    let field = '';
+    let field = '', promptHtml = esc(q.texto || '');
     if (q.tipo === 'sm' || q.tipo === 'vf') field = `<div class="vopts">${q.opciones.map((o, k) => `<label class="opt"><input type="radio" name="q${i}" value="${k}" required>${esc(o)}</label>`).join('')}</div>`;
     else if (q.tipo === 'emp') {
       const promptText = q.texto || '';
@@ -513,6 +513,19 @@ BIND.modulo = id => {
 };
 BIND.examen = id => {
   const f = $('#xf'); if (!f) return;
+  f.addEventListener('change', e => {
+    const match = /^q(\d+)_(\d+)$/.exec(e.target?.name || '');
+    if (!match) return;
+    const selects = Array.from(f.querySelectorAll('select[name^="q' + match[1] + '_"]'));
+    const used = new Set();
+    selects.forEach(select => {
+      if (select.value && used.has(select.value)) select.value = '';
+      if (select.value) used.add(select.value);
+    });
+    selects.forEach(select => Array.from(select.options).forEach(option => {
+      option.disabled = !!option.value && option.value !== select.value && used.has(option.value);
+    }));
+  });
   f.onsubmit = async e => {
     e.preventDefault();
     const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
