@@ -342,15 +342,15 @@ VIEW.modulo = id => {
 };
 VIEW.examenes = () => {
   if (esStaff()) return VIEW.gestionExamenes();
-  return `<div class="ph"><h2>Exámenes</h2><p>Selección múltiple con corrección al instante. Puedes repetirlos para practicar; tu mejor nota queda registrada.</p></div>
+  return `<div class="ph"><h2>Exámenes</h2><p>Cuatro evaluaciones semanales. Cada examen permite una sola entrega; las preguntas objetivas se califican automáticamente y comprensión queda pendiente de revisión docente.</p></div>
   <div class="grid gA">${S.examenes.filter(x => x.visible !== false).map(x => {
     const mis = S.misNotas.filter(n => n.examenId === x.id);
     const mejor = mis.length ? Math.max(...mis.map(n => n.puntaje)) : null;
     const tot = mis.length ? Math.max(...mis.map(n => n.total)) : null;
-    return `<article class="card exam"><div class="hd"><span class="nb">${esc(x.titulo)}</span><span class="tag ${mejor != null ? 'done' : 'prog'}">${mejor != null ? `Mejor: ${mejor}/${tot}` : 'Sin intento'}</span></div>
+    return `<article class="card exam"><div class="hd"><span class="nb">${esc(x.titulo)}</span><span class="tag ${mis.length ? 'done' : 'prog'}">${mis.some(n => n.estadoRevision === 'pending') ? 'Pendiente de revisión' : mejor != null ? `Nota: ${mejor}/${tot}` : 'Sin intento'}</span></div>
     <p style="color:var(--mut);font-size:.9rem">${esc(x.descripcion || '')}</p>
     <div class="info"><span><i class="fas fa-circle-question"></i> ${x.nPreg || '—'} preguntas</span>${mis.length ? `<span><i class="fas fa-rotate"></i> ${mis.length} intento${mis.length > 1 ? 's' : ''}</span>` : ''}</div>
-    <a class="btn" href="#/examen/${x.id}"><i class="fas fa-pen"></i> ${mis.length ? 'Repetir' : 'Realizar'}</a></article>`;
+    ${mis.length ? '<span class="tag done"><i class="fas fa-check"></i> Entregado</span>' : `<a class="btn" href="#/examen/${x.id}"><i class="fas fa-pen"></i> Realizar</a>`}</article>`;
   }).join('') || '<div class="empty"><i class="fas fa-clipboard-check"></i>Aún no hay exámenes disponibles.</div>'}</div>`;
 };
 VIEW.examen = id => {
@@ -394,7 +394,7 @@ VIEW.progreso = () => {
   const examenes = S.examenes.filter(x => x.visible !== false).map(x => {
     const n = S.misNotas.filter(y => y.examenId === x.id);
     const mejor = n.length ? Math.max(...n.map(y => y.puntaje)) : null, tot = n.length ? Math.max(...n.map(y => y.total)) : null;
-    return { titulo: x.titulo, tipo: 'Quiz', estado: mejor != null ? '<span class="tag done">' + mejor + '/' + tot + '</span>' : '<span class="tag prog">Sin intento</span>', url: '#/examen/' + x.id, accion: n.length ? 'Repetir' : 'Realizar', done: mejor != null };
+    return { titulo: x.titulo, tipo: 'Quiz', estado: mejor != null ? '<span class="tag done">' + mejor + '/' + tot + '</span>' : '<span class="tag prog">Sin intento</span>', url: '#/examen/' + x.id, accion: n.length ? 'Ver estado' : 'Realizar', done: mejor != null };
   });
   const items = [...modulos, ...examenes];
   const rows = items.map(x => `<article class="student-progress-item"><div class="spi-main"><b>${esc(x.titulo)}</b><small>${esc(x.tipo)}</small></div><div class="spi-foot">${x.estado}<a class="btn sec sm" href="${x.url}">${x.accion}</a></div></article>`).join('');
@@ -408,7 +408,7 @@ VIEW.progreso = () => {
   ${S.examenes.filter(x => x.visible !== false).map(x => {
     const n = S.misNotas.filter(y => y.examenId === x.id);
     const mejor = n.length ? Math.max(...n.map(y => y.puntaje)) : null, tot = n.length ? Math.max(...n.map(y => y.total)) : null;
-    return `<tr><td>${esc(x.titulo)}</td><td><span class="tag">Quiz</span></td><td>${mejor != null ? `<span class="tag done">${mejor}/${tot}</span>` : '<span class="tag prog">Sin intento</span>'}</td><td><a class="btn sec sm" href="#/examen/${x.id}">${n.length ? 'Repetir' : 'Realizar'}</a></td></tr>`;
+    return `<tr><td>${esc(x.titulo)}</td><td><span class="tag">Quiz</span></td><td>${mejor != null ? `<span class="tag done">${mejor}/${tot}</span>` : '<span class="tag prog">Sin intento</span>'}</td><td><a class="btn sec sm" href="#/examen/${x.id}"> ${n.length ? 'Ver estado' : 'Realizar'}</a></td></tr>`;
   }).join('')}
   </tbody></table></div>
   <div class="student-progress-mobile">${rows || '<div class="empty"><i class="fas fa-book-open"></i>Aún no hay módulos ni quizzes disponibles.</div>'}</div>`;
