@@ -148,7 +148,7 @@ function gradeMatchingQuestion(raw: any, metadata: any, points: number) {
 }
 const mapQuestion = (q: any, reveal = false) => {
   const metadata: any = { ...(q.metadata || {}) };
-  if (!reveal) { delete metadata.accepted; delete metadata.correct_text; delete metadata.pairs; delete metadata.model_answer; delete metadata.rubric; }
+  if (!reveal) { delete metadata.accepted; delete metadata.blanks; delete metadata.correct_text; delete metadata.pairs; delete metadata.model_answer; delete metadata.rubric; }
   const x: any = { id: q.id, examenId: q.exam_id, tipo: q.kind, texto: q.prompt, opciones: q.options, metadata, puntos: Number(q.points), orden: q.sort_order };
   if (reveal) { x.correcta = q.correct_answer; x.metadata = q.metadata || {}; }
   return x;
@@ -459,19 +459,23 @@ async function handle(action: string, p: any, u: any) {
       return { ...mapExam(ex), preguntas: qs.map(q => mapQuestion(q, u.role !== "estudiante")) };
     }
     case "saveExamen": {
-      const ex = p.examen || {}; await subjectAccess(u, ex.asignaturaId || (ex.id ? (await one("exams", q => q.eq("id", ex.id)))?.subject_id : ""));
+      const ex = p.examen || {};
       if (!clean(ex.titulo)) fail("El examen necesita un título.");
       let id = ex.id;
+      let existing: any = null;
       if (id) {
-        const old = await one("exams", q => q.eq("id", id)); if (!old) fail("Examen no encontrado.");
-        await patch("exams", id, { title: ex.titulo, description: ex.descripcion || "", visible: ex.visible !== false });
-        await db.from("questions").delete().eq("exam_id", id);
+        existing = await one("exams", q => q.eq("id", id));
+        if (!existing) fail("Examen no encontrado.");
+        await subjectAccess(u, existing.subject_id);
+        const attempts = await rows("exam_attempts", q => q.eq("exam_id", id));
+        if (attempts.length) fail("Este examen ya tiene entregas. Duplica el examen para modificar preguntas y conservar intactos los intentos existentes.");
       } else {
+        await subjectAccess(u, ex.asignaturaId);
         id = uid("x");
-        await insert("exams", { id, subject_id: ex.asignaturaId, title: ex.titulo, description: ex.descripcion || "", visible: ex.visible !== false });
       }
       const qs = (ex.preguntas || []).map((q: any, i: number) => {
         const kind = q.tipo || "sm";
+        if (!["sm", "vf", "emp", "rel", "comprension", "red"].includes(kind)) fail("Tipo de pregunta no válido en la pregunta " + (i + 1) + ".");
         const metadata: any = { ...(q.metadata || {}) };
         const prompt = String(q.texto || "").trim();
         if (!prompt) fail("La pregunta " + (i + 1) + " necesita un enunciado.");
@@ -482,9 +486,11 @@ async function handle(action: string, p: any, u: any) {
           if (!blanks.length || blanks.some((answers: any) => !Array.isArray(answers) || !answers.some((v: any) => String(v || "").trim()))) {
             fail("La pregunta de completar " + (i + 1) + " necesita al menos una respuesta correcta por espacio.");
           }
-          const markers = Array.from(prompt.matchAll(/\{\{(\d+)\}\}/g));
-          if (markers.length && markers.length !== blanks.length) fail("La pregunta " + (i + 1) + " tiene " + markers.length + " marcadores, pero " + blanks.length + " espacios configurados.");
-          if (!markers.length && blanks.length !== 1) fail("La pregunta " + (i + 1) + " tiene varios espacios: utiliza {{1}}, {{2}}, etc. en el enunciado.");
+          const markerNumbers = Array.from(prompt.matchAll(/\{\{(\d+)\}\}/g)).map((match: any) => Number(match[1]));
+          if (markerNumbers.length && (new Set(markerNumbers).size !== blanks.length || markerNumbers.some((n: number) => n < 1 || n > blanks.length))) {
+            fail("La pregunta " + (i + 1) + " debe usar una vez cada marcador, desde {{1}} hasta {{" + blanks.length + "}}.");
+          }
+          if (!markerNumbers.length && blanks.length !== 1) fail("La pregunta " + (i + 1) + " tiene varios espacios: utiliza {{1}}, {{2}}, etc. en el enunciado.");
           metadata.blanks = blanks.map((answers: any) => answers.map((v: any) => String(v).trim()).filter(Boolean));
           delete metadata.accepted;
         }
@@ -506,6 +512,13 @@ async function handle(action: string, p: any, u: any) {
           metadata, points: Number(q.puntos || 1), sort_order: i + 1
         };
       });
+      if (existing) {
+        await patch("exams", id, { title: ex.titulo, description: ex.descripcion || "", visible: ex.visible !== false });
+        const { error: deleteError } = await db.from("questions").delete().eq("exam_id", id);
+        if (deleteError) throw deleteError;
+      } else {
+        await insert("exams", { id, subject_id: ex.asignaturaId, title: ex.titulo, description: ex.descripcion || "", visible: ex.visible !== false });
+      }
       if (qs.length) { const { error } = await db.from("questions").insert(qs); if (error) throw error; }
       return { id };
     }
