@@ -1,5 +1,5 @@
 /* STBCOr Gestión de Aulas · Service Worker */
-const CACHE_VERSION = 'stbcor-gestion-v1.0.0';
+const CACHE_VERSION = 'stbcor-gestion-v1.0.1';
 const SHELL_FILES = [
   './',
   './index.html',
