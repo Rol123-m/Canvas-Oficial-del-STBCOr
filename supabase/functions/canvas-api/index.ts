@@ -131,6 +131,35 @@ async function progressSummary(sid: string, username: string) {
   const done = mods.filter(x => doneM.has(x.id)).length + exams.filter(x => doneE.has(x.id)).length;
   return { done, tot: total, pct: total ? Math.round(done / total * 100) : 0 };
 }
+async function uploadResourceToRepository(subjectId: string, filename: string, mime: string, base64: string) {
+  const token = Deno.env.get("GITHUB_TOKEN");
+  if (!token) fail("La carga al repositorio todavía no está configurada. La dirección debe añadir el secreto GITHUB_TOKEN en Supabase Functions.");
+  const raw = clean(filename).split(/[\\/]/).pop() || "recurso";
+  const extMatch = raw.match(/\.(html?|png|jpe?g|webp|gif)$/i);
+  if (!extMatch) fail("Solo se permiten archivos HTML, PNG, JPG, WEBP o GIF.");
+  const ext = extMatch[0].toLowerCase();
+  const isHtml = ext === ".html" || ext === ".htm";
+  const expectedMime: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif" };
+  if (isHtml && mime && !["text/html", "application/xhtml+xml", "application/octet-stream"].includes(mime)) fail("El tipo de archivo HTML no es válido.");
+  if (!isHtml && mime && mime !== expectedMime[ext] && mime !== "application/octet-stream") fail("El tipo de imagen no coincide con su extensión.");
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(base64) || base64.length % 4 !== 0) fail("El archivo recibido no tiene un formato válido.");
+  let bytes: Uint8Array;
+  try { bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0)); } catch { fail("No se pudo decodificar el archivo."); }
+  const max = isHtml ? 1024 * 1024 : 5 * 1024 * 1024;
+  if (bytes.length < 1 || bytes.length > max) fail(isHtml ? "Los archivos HTML no pueden superar 1 MB." : "Las imágenes no pueden superar 5 MB.");
+  const stem = raw.slice(0, -ext.length).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 55) || "recurso";
+  const safeName = stem + "-" + crypto.randomUUID().slice(0, 8) + ext;
+  const path = "recursos/" + encodeURIComponent(subjectId) + "/" + encodeURIComponent(safeName);
+  const response = await fetch("https://api.github.com/repos/Rol123-m/Canvas-Oficial-del-STBCOr/contents/" + path, {
+    method: "PUT",
+    headers: { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
+    body: JSON.stringify({ message: "Añadir recurso educativo de asignatura", content: base64, branch: "main" })
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) fail("GitHub no pudo publicar el archivo (" + response.status + "): " + clean(result.message || "error de repositorio"));
+  const url = "https://rol123-m.github.io/Canvas-Oficial-del-STBCOr/recursos/" + encodeURIComponent(subjectId) + "/" + encodeURIComponent(safeName);
+  return { url, filename: safeName, kind: isHtml ? "html" : "image" };
+}
 async function handle(action: string, p: any, u: any) {
   const asigId = clean(p.asigId || p.asig?.id || p.pesta?.asignaturaId || p.examen?.asignaturaId || p.anuncio?.asignaturaId);
   switch (action) {
@@ -156,7 +185,11 @@ async function handle(action: string, p: any, u: any) {
   if (!u) fail("Inicia sesión para continuar.");
   switch (action) {
     case "getEstudiantes": {
-      requireStaff(u);
+      requireDir(u);
+      return (await rows("app_users", q => q.eq("role", "estudiante").order("full_name"))).map(mapUser);
+    }
+    case "getCandidatosMatricula": {
+      await subjectAccess(u, p.asigId);
       return (await rows("app_users", q => q.eq("role", "estudiante").order("full_name"))).map(mapUser);
     }
     case "saveEstudiante": {
@@ -318,7 +351,8 @@ async function handle(action: string, p: any, u: any) {
       return { n };
     }
     case "desmatricular": {
-      await subjectAccess(u, p.asigId);
+      requireDir(u);
+      await subject(p.asigId);
       const { error } = await db.from("enrollments").delete().eq("subject_id", p.asigId).eq("student_username", p.usuario);
       if (error) throw error; return { ok: true };
     }
@@ -327,6 +361,11 @@ async function handle(action: string, p: any, u: any) {
       let q = db.from("modules").select("*").eq("subject_id", p.asigId).order("sort_order");
       if (!p.todas) q = q.eq("visible", true);
       const { data, error } = await q; if (error) throw error; return (data || []).map(mapModule);
+    }
+    case "uploadResource": {
+      await subjectAccess(u, p.asigId);
+      const uploaded = await uploadResourceToRepository(clean(p.asigId), clean(p.filename), clean(p.mime), clean(p.base64));
+      return uploaded;
     }
     case "savePestana": {
       const t = p.pesta || {}; await subjectAccess(u, t.asignaturaId);
