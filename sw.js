@@ -1,5 +1,5 @@
 /* STBCOr Gestión de Aulas · Service Worker */
-const CACHE_VERSION = 'stbcor-gestion-v1.0.1';
+const CACHE_VERSION = 'stbcor-gestion-v1.0.2';
 const SHELL_FILES = [
   './',
   './index.html',
@@ -65,9 +65,9 @@ self.addEventListener('fetch', event => {
     event.respondWith((async () => {
       const cached = await caches.match(request);
       const fresh = fetch(request).then(response => {
-        if (response && response.ok) caches.open(CACHE_VERSION).then(cache => cache.put(request, response.clone()));
+        if (response && response.ok) { const size = Number(response.headers.get('content-length') || 0); if (!size || size < 20 * 1024 * 1024) caches.open(CACHE_VERSION).then(cache => cache.put(request, response.clone())); }
         return response;
-      }).catch(() => cached);
+      }).catch(() => cached || new Response('Este recurso no está disponible sin conexión.', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }));
       return cached || fresh;
     })());
     return;
