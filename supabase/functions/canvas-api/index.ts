@@ -482,7 +482,7 @@ async function handle(action: string, p: any, u: any) {
         if (kind === "emp") {
           const blanks = Array.isArray(metadata.blanks) && metadata.blanks.length
             ? metadata.blanks
-            : (Array.isArray(metadata.accepted) && metadata.accepted.length ? [metadata.accepted] : []);
+            : (Array.isArray(metadata.accepted) && metadata.accepted.length ? [metadata.accepted] : (metadata.correct_text ? [[metadata.correct_text]] : []));
           if (!blanks.length || blanks.some((answers: any) => !Array.isArray(answers) || !answers.some((v: any) => String(v || "").trim()))) {
             fail("La pregunta de completar " + (i + 1) + " necesita al menos una respuesta correcta por espacio.");
           }
