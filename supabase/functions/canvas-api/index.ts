@@ -106,7 +106,7 @@ const mapModule = (m: any) => ({ id: m.id, asignaturaId: m.subject_id, titulo: m
 const mapExam = (e: any) => ({ id: e.id, asignaturaId: e.subject_id, titulo: e.title, descripcion: e.description, visible: e.visible, creado: e.created_at });
 const mapQuestion = (q: any, reveal = false) => {
   const metadata: any = { ...(q.metadata || {}) };
-  if (!reveal) { delete metadata.accepted; delete metadata.correct_text; delete metadata.pairs; delete metadata.model_answer; }
+  if (!reveal) { delete metadata.accepted; delete metadata.correct_text; delete metadata.pairs; delete metadata.model_answer; delete metadata.rubric; }
   const x: any = { id: q.id, examenId: q.exam_id, tipo: q.kind, texto: q.prompt, opciones: q.options, metadata, puntos: Number(q.points), orden: q.sort_order };
   if (reveal) { x.correcta = q.correct_answer; x.metadata = q.metadata || {}; }
   return x;
@@ -452,7 +452,7 @@ async function handle(action: string, p: any, u: any) {
         let ok: boolean | null = false, earned = 0;
         if (kind === "comprension" || kind === "red") { pending = true; ok = null; }
         else if (kind === "sm" || kind === "vf") { const selected = raw === null ? null : Number(raw); ok = selected !== null && selected === Number(q.correct_answer); if (ok) earned = Number(q.points || 0); }
-        else if (kind === "emp") { const norm = (v: any) => String(v ?? "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase().trim().replace(/\\s+/g, " "); const accepted = (meta.accepted || [meta.correct_text || ""]).map((v: any) => norm(v)); ok = raw !== null && accepted.includes(norm(raw)); if (ok) earned = Number(q.points || 0); }
+        else if (kind === "emp") { const norm = (v: any) => String(v ?? "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase().trim().replace(/\\s+/g, " "); const accepted = (meta.accepted || [meta.correct_text || ""]).map((v: any) => norm(v)); ok = raw !== null && norm(raw) !== "" && accepted.includes(norm(raw)); if (ok) earned = Number(q.points || 0); }
         else if (kind === "rel") { const pairs = meta.pairs || []; const submitted = raw && typeof raw === "object" ? raw : {}; const matched = pairs.filter((pair: any) => String(submitted[pair.left] ?? "") === String(pair.right)); earned = pairs.length ? Number(q.points || 0) * matched.length / pairs.length : 0; ok = pairs.length > 0 && matched.length === pairs.length; }
         score += earned;
         return { preguntaId: q.id, tipo: kind, texto: q.prompt, respuesta: raw, opciones: q.options, metadata: meta, correcta: (kind === "sm" || kind === "vf") ? Number(q.correct_answer) : null, ok, puntos: Number(q.points || 0), obtenido: earned };
