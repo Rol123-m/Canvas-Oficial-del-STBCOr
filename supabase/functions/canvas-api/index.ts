@@ -91,7 +91,7 @@ async function subject(id: string) {
 async function subjectAccess(u: any, id: string) {
   requireStaff(u);
   const a = await subject(id);
-  if (u.role === "profesor" && a.professor_username !== u.username) fail("Solo puedes gestionar tu propia asignatura.");
+  if (u.role === "profesor" && a.professor_username !== u.username && a.professor2_username !== u.username) fail("Solo puedes gestionar las asignaturas que tienes asignadas.");
   return a;
 }
 async function enrolled(u: any, sid: string) {
@@ -101,7 +101,7 @@ async function enrolled(u: any, sid: string) {
   } else await subjectAccess(u, sid);
 }
 const mapUser = (u: any) => ({ id: u.id, nombre: u.full_name, usuario: u.username, grupo: u.group_name || "", estado: u.status, email: u.email || "", rol: u.role });
-const mapSubject = (a: any) => ({ id: a.id, nombre: a.name, descripcion: a.description, color: a.color, profesor: a.professor_username || "", profesorNombre: a.professor_name || "", chatAbierto: a.chat_open ? "Si" : "No", creada: a.created_at });
+const mapSubject = (a: any) => ({ id: a.id, nombre: a.name, descripcion: a.description, color: a.color, profesor: a.professor_username || "", profesorNombre: a.professor_name || "", segundoProfesor: a.professor2_username || "", segundoProfesorNombre: a.professor2_name || "", profesoresNombres: [a.professor_name, a.professor2_name].filter(Boolean).join(" · "), chatAbierto: a.chat_open ? "Si" : "No", creada: a.created_at });
 const mapModule = (m: any) => ({ id: m.id, asignaturaId: m.subject_id, titulo: m.title, icono: m.icon, tipo: m.kind, contenido: m.content, orden: m.sort_order, visible: m.visible });
 const mapExam = (e: any) => ({ id: e.id, asignaturaId: e.subject_id, titulo: e.title, descripcion: e.description, visible: e.visible, creado: e.created_at });
 const mapQuestion = (q: any, reveal = false) => {
@@ -272,7 +272,7 @@ async function handle(action: string, p: any, u: any) {
         if (!es.length) return [];
         return (await rows("subjects", q => q.in("id", es.map(x => x.subject_id)))).map(mapSubject);
       }
-      if (u.role === "profesor") return (await rows("subjects", q => q.eq("professor_username", u.username))).map(mapSubject);
+      if (u.role === "profesor") return (await rows("subjects", q => q.or("professor_username.eq." + u.username + ",professor2_username.eq." + u.username))).map(mapSubject);
       requireDir(u);
       return (await rows("subjects")).map(mapSubject);
     }
