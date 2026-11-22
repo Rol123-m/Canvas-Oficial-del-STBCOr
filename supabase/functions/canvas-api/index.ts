@@ -107,6 +107,11 @@ const mapExam = (e: any) => ({ id: e.id, asignaturaId: e.subject_id, titulo: e.t
 function normalizeAssessmentText(value: any): string {
   return String(value ?? "").normalize("NFC").toLowerCase().trim().replace(/\s+/g, " ");
 }
+function stableAssessmentJson(value: any): string {
+  if (Array.isArray(value)) return "[" + value.map(stableAssessmentJson).join(",") + "]";
+  if (value && typeof value === "object") return "{" + Object.keys(value).sort().map(key => JSON.stringify(key) + ":" + stableAssessmentJson(value[key])).join(",") + "}";
+  return JSON.stringify(value);
+}
 function gradeFillQuestion(raw: any, metadata: any, points: number) {
   const configured = Array.isArray(metadata?.blanks) && metadata.blanks.length
     ? metadata.blanks
@@ -467,8 +472,7 @@ async function handle(action: string, p: any, u: any) {
         existing = await one("exams", q => q.eq("id", id));
         if (!existing) fail("Examen no encontrado.");
         await subjectAccess(u, existing.subject_id);
-        const attempts = await rows("exam_attempts", q => q.eq("exam_id", id));
-        if (attempts.length) fail("Este examen ya tiene entregas. Duplica el examen para modificar preguntas y conservar intactos los intentos existentes.");
+        var existingAttempts = await rows("exam_attempts", q => q.eq("exam_id", id));
       } else {
         await subjectAccess(u, ex.asignaturaId);
         id = uid("x");
@@ -487,7 +491,7 @@ async function handle(action: string, p: any, u: any) {
             fail("La pregunta de completar " + (i + 1) + " necesita al menos una respuesta correcta por espacio.");
           }
           const markerNumbers = Array.from(prompt.matchAll(/\{\{(\d+)\}\}/g)).map((match: any) => Number(match[1]));
-          if (markerNumbers.length && (new Set(markerNumbers).size !== blanks.length || markerNumbers.some((n: number) => n < 1 || n > blanks.length))) {
+          if (markerNumbers.length && (markerNumbers.length !== blanks.length || new Set(markerNumbers).size !== blanks.length || markerNumbers.some((n: number) => n < 1 || n > blanks.length))) {
             fail("La pregunta " + (i + 1) + " debe usar una vez cada marcador, desde {{1}} hasta {{" + blanks.length + "}}.");
           }
           if (!markerNumbers.length && blanks.length !== 1) fail("La pregunta " + (i + 1) + " tiene varios espacios: utiliza {{1}}, {{2}}, etc. en el enunciado.");
@@ -512,6 +516,22 @@ async function handle(action: string, p: any, u: any) {
           metadata, points: Number(q.puntos || 1), sort_order: i + 1
         };
       });
+      if (existing && existingAttempts?.length) {
+        const oldQuestions = await rows("questions", q => q.eq("exam_id", id).order("sort_order"));
+        const unchanged = oldQuestions.length === qs.length && qs.every((next: any, i: number) => {
+          const old = oldQuestions[i];
+          return old.kind === next.kind &&
+            old.prompt === next.prompt &&
+            stableAssessmentJson(old.options || []) === stableAssessmentJson(next.options || []) &&
+            Number(old.correct_answer || 0) === Number(next.correct_answer || 0) &&
+            stableAssessmentJson(old.metadata || {}) === stableAssessmentJson(next.metadata || {}) &&
+            Number(old.points || 0) === Number(next.points || 0) &&
+            Number(old.sort_order || 0) === Number(next.sort_order || 0);
+        });
+        if (!unchanged) fail("Este examen ya tiene entregas. No se pueden modificar sus preguntas; duplica el examen para crear una nueva versión y conservar las calificaciones anteriores.");
+        await patch("exams", id, { title: ex.titulo, description: ex.descripcion || "", visible: ex.visible !== false });
+        return { id };
+      }
       if (existing) {
         await patch("exams", id, { title: ex.titulo, description: ex.descripcion || "", visible: ex.visible !== false });
         const { error: deleteError } = await db.from("questions").delete().eq("exam_id", id);
