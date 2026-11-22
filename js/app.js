@@ -1063,7 +1063,8 @@ BIND.base = () => {
   q && (q.oninput = filt); g && (g.onchange = filt);
 };
 BIND.estudiantes = () => { /* acciones por delegación global */ };
-BIND.resultados = () => { /* idem */ };\nBIND.revision = () => {
+BIND.resultados = () => { /* idem */ };
+BIND.revision = () => {
   const f=$('#reviewform'); if(!f)return;
   f.onsubmit=async e=>{e.preventDefault();const a=S.reviewAttempt.intento;const calificaciones=S.reviewAttempt.preguntas.filter(q=>['comprension','red'].includes(q.tipo)).map(q=>({preguntaId:q.id,puntos:Number(f.querySelector('[name="score_'+q.id+'"]').value)}));try{await API.call('revisarIntento',{intentoId:a.id,calificaciones,comentario:$('#reviewcomment').value});toast('Calificación final guardada.');nav('resultados/'+a.examenId);}catch(ex){toast(ex.message);}};
 };
