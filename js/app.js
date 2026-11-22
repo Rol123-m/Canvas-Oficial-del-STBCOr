@@ -193,8 +193,10 @@ async function route() {
   if (esEst() && r === 'asignaturas') r = 'mis';
   if (esStaff() && r === 'mis') r = 'asignaturas';
   if (!ROUTES.includes(r) || r === 'mas') return nav(esStaff() ? 'resumen' : 'mis');
-  const soloStaff = ['resumen', 'estudiantes', 'examen-editar', 'resultados', 'ajustes', 'direccion', 'base', 'asignaturas'];
+  const soloStaff = ['resumen', 'estudiantes', 'examen-editar', 'resultados', 'ajustes', 'asignaturas'];
   if (soloStaff.includes(r) && !esStaff()) return nav('mis');
+  const soloDireccion = ['direccion', 'base'];
+  if (soloDireccion.includes(r) && !esDir()) return nav(esStaff() ? 'resumen' : 'mis');
   if (r === 'examen' && esStaff()) r = 'resultados';
   if (esEst() && !S.asigId && ['panel', 'modulos', 'modulo', 'examenes', 'examen', 'anuncios', 'foro', 'progreso'].includes(r)) {
     shell();
@@ -237,7 +239,18 @@ const docHtml = txt => String(txt || '').split(/\n\n+/).map(b => {
   return html + (ul ? '</ul>' : '');
 }).join('');
 const vocabHtml = c => { try { const f = (JSON.parse(c).filas || []); return `<div class="vw-grid">${f.map(r => `<div class="vw"><span class="vw-g gk">${esc(r[0])}</span><span class="vw-e">${esc(r[1] || '')}</span>${r[2] ? `<small>${esc(r[2])}</small>` : ''}</div>`).join('')}</div>`; } catch { return '<p>Sin datos.</p>'; } };
-const recursosHtml = c => { try { const it = (JSON.parse(c).items || []); return `<div class="grid gA">${it.map(r => `<div class="card res"><i class="fas ${r.u ? 'fa-up-right-from-square' : 'fa-hourglass'} big"></i><h3>${esc(r.t)}</h3><p>${esc(r.d || '')}</p>${r.u ? `<a class="btn sec sm" href="${esc(r.u)}" target="_blank" rel="noopener">${esc(r.b || 'Abrir')} <i class="fas fa-up-right-from-square"></i></a>` : '<span class="tag">El profesor publicará el enlace aquí</span>'}</div>`).join('')}</div>`; } catch { return '<p>Sin datos.</p>'; } };
+const recursosHtml = c => { try {
+  const it = (JSON.parse(c).items || []);
+  return \`<div class="grid gA">\${it.map(r => {
+    const url = String(r.u || '');
+    const safe = /^https?:\/\//i.test(url) ? url : '';
+    const kind = r.k || (/\.html?(?:$|[?#])/i.test(url) ? 'html' : /\.(?:png|jpe?g|webp|gif)(?:$|[?#])/i.test(url) ? 'image' : 'link');
+    const media = safe && kind === 'image' ? \`<a href="\${esc(safe)}" target="_blank" rel="noopener"><img class="res-img" src="\${esc(safe)}" alt="\${esc(r.t)}" loading="lazy"></a>\`
+      : safe && kind === 'html' ? \`<iframe class="res-html" src="\${esc(safe)}" title="\${esc(r.t)}" sandbox="allow-scripts" loading="lazy"></iframe>\` : '';
+    const action = safe && kind === 'link' ? \`<a class="btn sec sm" href="\${esc(safe)}" target="_blank" rel="noopener">\${esc(r.b || 'Abrir')} <i class="fas fa-up-right-from-square"></i></a>\` : '';
+    return \`<div class="card res"><i class="fas \${kind === 'image' ? 'fa-image' : kind === 'html' ? 'fa-code' : safe ? 'fa-up-right-from-square' : 'fa-hourglass'} big"></i><h3>\${esc(r.t)}</h3><p>\${esc(r.d || '')}</p>\${media}\${action}\${!safe ? '<span class="tag">Recurso sin URL válida</span>' : ''}</div>\`;
+  }).join('')}</div>\`;
+} catch { return '<p>Sin datos.</p>'; } };
 
 /* ---------- vistas del estudiante ---------- */
 const VIEW = {};
@@ -441,7 +454,11 @@ function pestaToText(t) {
 }
 function textToPesta(tipo, txt) {
   if (tipo === 'vocabulario') return JSON.stringify({ filas: txt.split('\n').map(l => l.trim()).filter(Boolean).map(l => l.split('|').map(x => x.trim())) });
-  if (tipo === 'recursos') return JSON.stringify({ items: txt.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const p = l.split('|').map(x => x.trim()); return { t: p[0] || '', d: p[1] || '', u: p[2] || '', b: p[3] || 'Abrir' }; }) });
+  if (tipo === 'recursos') return JSON.stringify({ items: txt.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const p = l.split('|').map(x => x.trim()), u = p[2] || '';
+    const k = /\.html?(?:$|[?#])/i.test(u) ? 'html' : /\.(?:png|jpe?g|webp|gif)(?:$|[?#])/i.test(u) ? 'image' : 'link';
+    return { t: p[0] || '', d: p[1] || '', u, b: p[3] || 'Abrir', k };
+  }) });
   return txt;
 }
 function dlgPesta(t) {
@@ -452,17 +469,45 @@ function dlgPesta(t) {
   <div class="fld"><label>Tipo de módulo</label><div class="in"><select id="pty">${tipos}</select></div></div>
   <div class="fld" id="purlfld" style="display:none"><label>URL del enlace</label><div class="in"><input id="purl" placeholder="https://…"></div></div>
   <div class="fld" id="ptxtfld"><label id="ptxtlbl">Contenido</label><div class="in"><textarea id="ptxt" rows="8" placeholder=""></textarea></div></div>
+  <div class="fld" id="pfilesfld" style="display:none"><label>Subir archivos al repositorio del seminario</label><div class="in"><input id="pfiles" type="file" multiple accept=".html,.htm,.png,.jpg,.jpeg,.webp,.gif" style="padding:.55rem"></div><small style="color:var(--mut)">HTML e imágenes PNG, JPG, WEBP o GIF. Los archivos se publican en GitHub; en Supabase solo se guarda el enlace.</small><div id="pfilemsg" class="tag" style="margin-top:.35rem;display:inline-block"></div></div>
   <label style="display:flex;gap:.5rem;align-items:center;font-size:.9rem;margin-bottom:.6rem"><input type="checkbox" id="pv" ${!t || t.visible !== false ? 'checked' : ''}> Visible para los estudiantes</label>
   <div class="err" id="per"></div><button class="btn" type="submit"><i class="fas fa-check"></i> Guardar módulo</button></form>`);
   const upd = () => {
     const ty = $('#pty').value;
     $('#purlfld').style.display = ty === 'enlace' ? '' : 'none';
     $('#ptxtfld').style.display = ty === 'enlace' ? 'none' : '';
+    $('#pfilesfld').style.display = ty === 'recursos' ? '' : 'none';
     $('#ptxtlbl').textContent = HINTS[ty].l; $('#ptxt').placeholder = HINTS[ty].p;
   };
   $('#pty').onchange = upd; upd();
   $('#ptxt').value = t ? pestaToText(t) : '';
   if (t && t.tipo === 'enlace') $('#purl').value = t.contenido || '';
+  $('#pfiles').onchange = async () => {
+    const input = $('#pfiles'), files = [...(input.files || [])], status = $('#pfilemsg');
+    status.textContent = '';
+    for (const file of files) {
+      try {
+        const html = /\.html?$/i.test(file.name);
+        const image = /\.(png|jpe?g|webp|gif)$/i.test(file.name);
+        if (!html && !image) throw new Error('Formato no permitido: ' + file.name);
+        if (file.size > (html ? 1024 * 1024 : 5 * 1024 * 1024)) throw new Error('El archivo supera el tamaño permitido: ' + file.name);
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || '').split(',')[1] || '');
+          reader.onerror = () => reject(new Error('No se pudo leer ' + file.name));
+          reader.readAsDataURL(file);
+        });
+        const result = await API.call('uploadResource', { auth: authCod(), asigId: S.asigId, filename: file.name, mime: file.type, base64 });
+        const line = [file.name.replace(/\|/g, '-'), html ? 'Página HTML' : 'Imagen', result.url, 'Abrir'].join(' | ');
+        $('#ptxt').value = ($('#ptxt').value.trim() ? $('#ptxt').value.trim() + '\n' : '') + line;
+        status.textContent = 'Publicado: ' + file.name;
+      } catch (ex) {
+        status.textContent = ex.message;
+        break;
+      }
+    }
+    input.value = '';
+  };
   $('#pf').onsubmit = async e => {
     e.preventDefault();
     try {
@@ -505,7 +550,7 @@ async function dlgAsignatura() {
   };
 }
 async function dlgMatricularGrupo() {
-  if (!S.estudiantes.length) S.estudiantes = await API.call('getEstudiantes', { auth: authCod() });
+  if (!S.estudiantes.length) S.estudiantes = await API.call('getCandidatosMatricula', { auth: authCod(), asigId: S.asigId });
   const gs = [...new Set(S.estudiantes.map(e => e.grupo))];
   const d = dialog('Añadir un grupo completo', `<form id="gf"><div class="fld"><label>Grupo</label><div class="in"><select id="gg">${gs.map(g => `<option>${esc(g)}</option>`).join('')}</select></div></div>
   <p style="color:var(--mut);font-size:.86rem">Se añadirán todos los estudiantes de ese grupo que aún no estén matriculados.</p>
@@ -517,7 +562,7 @@ async function dlgMatricularGrupo() {
   };
 }
 async function dlgMatricularAlumnos() {
-  if (!S.estudiantes.length) S.estudiantes = await API.call('getEstudiantes', { auth: authCod() });
+  if (!S.estudiantes.length) S.estudiantes = await API.call('getCandidatosMatricula', { auth: authCod(), asigId: S.asigId });
   const ya = new Set(S.matriculados.map(m => m.usuario));
   const libres = S.estudiantes.filter(e => !ya.has(e.usuario));
   const d = dialog('Añadir alumnos individualmente', `<input class="fld" style="width:100%;border:1px solid var(--line);border-radius:10px;padding:.6rem .8rem;font:inherit" id="msq" placeholder="Buscar por nombre o grupo…">
@@ -719,13 +764,13 @@ VIEW.matrizProgreso = () => {
   }).join('') || '<tr><td colspan="99" style="text-align:center;color:var(--mut)">Sin matriculados.</td></tr>'}
   </tbody></table></div>`;
 };
-VIEW.estudiantes = () => `<div class="ph"><h2>Estudiantes de la asignatura</h2><p>${esc(asig()?.nombre || '')} · ${S.matriculados.length} matriculados</p></div>
+VIEW.estudiantes = () => \`<div class="ph"><h2>Estudiantes de la asignatura</h2><p>\${esc(asig()?.nombre || '')} · \${S.matriculados.length} matriculados</p></div>
 <div class="rowtools"><button class="btn" data-act="matgrupo"><i class="fas fa-users"></i> Añadir grupo completo</button>
 <button class="btn sec" data-act="matalum"><i class="fas fa-user-plus"></i> Añadir alumnos</button>
-<a class="btn sec" href="#/base"><i class="fas fa-database"></i> Base de datos completa</a></div>
+\${esDir() ? '<a class="btn sec" href="#/base"><i class="fas fa-database"></i> Base general de estudiantes</a>' : ''}</div>
 <div class="card tw"><table><thead><tr><th>Estudiante</th><th>Grupo</th><th>Usuario</th><th>Estado</th><th></th></tr></thead><tbody>
-${[...S.matriculados].sort((a, b) => a.grupo.localeCompare(b.grupo) || a.nombre.localeCompare(b.nombre)).map(m => `<tr><td><b>${esc(m.nombre)}</b></td><td>${esc(m.grupo)}</td><td class="mono">${esc(m.usuario)}</td><td><span class="badge ${m.estado === 'Activo' ? '' : 'off'}">${esc(m.estado)}</span></td><td><button class="btn sec sm" data-act="quitar" data-user="${esc(m.usuario)}"><i class="fas fa-user-minus"></i> Quitar</button></td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--mut);padding:1.4rem">Nadie matriculado aún. Usa «Añadir grupo completo».</td></tr>'}
-</tbody></table></div>`;
+\${[...S.matriculados].sort((a, b) => a.grupo.localeCompare(b.grupo) || a.nombre.localeCompare(b.nombre)).map(m => \`<tr><td><b>\${esc(m.nombre)}</b></td><td>\${esc(m.grupo)}</td><td class="mono">\${esc(m.usuario)}</td><td><span class="badge \${m.estado === 'Activo' ? '' : 'off'}">\${esc(m.estado)}</span></td><td>\${esDir() ? \`<button class="btn sec sm" data-act="quitar" data-user="\${esc(m.usuario)}"><i class="fas fa-user-minus"></i> Quitar</button>\` : '<span class="tag">Solo consulta</span>'}</td></tr>\`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--mut);padding:1.4rem">Nadie matriculado aún. Usa «Añadir grupo completo».</td></tr>'}
+</tbody></table></div>\`;
 VIEW.ajustes = () => { const a = asig(); return `<div class="ph"><h2>Ajustes de la asignatura</h2><p>Personaliza el nombre, la descripción y el color.</p></div>
 <form id="ajf"><div class="card" style="margin-bottom:1.1rem">
 <div class="fld"><label>Nombre</label><div class="in"><input id="ajn" required value="${esc(a?.nombre || '')}"></div></div>
@@ -757,7 +802,7 @@ VIEW.direccion = () => {
 };
 VIEW.base = () => {
   S.grupos = [...new Set(S.estudiantes.map(e => e.grupo))];
-  return `<div class="ph"><h2>Base de datos de estudiantes</h2><p>${S.estudiantes.length} registros · los cambios se guardan en la hoja de Google Sheets.</p></div>
+  return `<div class="ph"><h2>Base de datos de estudiantes</h2><p>${S.estudiantes.length} registros · los cambios se guardan de forma segura en Supabase.</p></div>
   <div class="rowtools"><button class="btn" data-act="badd"><i class="fas fa-user-plus"></i> Añadir estudiante</button>
   <button class="btn sec" data-act="bimp"><i class="fas fa-file-import"></i> Importar lista (pegar)</button>
   <div class="fld" style="margin:0"><div class="in"><input id="bsq" placeholder="Buscar…"></div></div>
@@ -793,7 +838,7 @@ document.addEventListener('click', async e => {
   const a = t.dataset.act, id = t.dataset.id;
   const reroute = async () => { await loadAsigData(); route(); };
   try {
-    if (a === 'mas') { e.preventDefault(); return dialog('Más secciones', [esEst() ? ['mis', 'fa-graduation-cap', 'Mis asignaturas'] : ['resumen', 'fa-gauge-high', 'Resumen'], ['anuncios', 'fa-bullhorn', 'Anuncios'], ['foro', 'fa-comments', 'Foro de dudas'], esEst() ? ['progreso', 'fa-chart-line', 'Mi progreso'] : ['progreso', 'fa-chart-line', 'Progreso'], esStaff() ? ['base', 'fa-database', 'Base de estudiantes'] : null, esStaff() ? ['asignaturas', 'fa-graduation-cap', 'Asignaturas'] : null].filter(Boolean).map(n => `<a class="opt" href="#/${n[0]}"><i class="fas ${n[1]}"></i><span><b>${n[2]}</b></span></a>`).join('')); }
+    if (a === 'mas') { e.preventDefault(); return dialog('Más secciones', [esEst() ? ['mis', 'fa-graduation-cap', 'Mis asignaturas'] : ['resumen', 'fa-gauge-high', 'Resumen'], ['anuncios', 'fa-bullhorn', 'Anuncios'], ['foro', 'fa-comments', 'Foro de dudas'], esEst() ? ['progreso', 'fa-chart-line', 'Mi progreso'] : ['progreso', 'fa-chart-line', 'Progreso'], esDir() ? ['base', 'fa-database', 'Base de estudiantes'] : null, esStaff() ? ['asignaturas', 'fa-graduation-cap', 'Asignaturas'] : null].filter(Boolean).map(n => `<a class="opt" href="#/${n[0]}"><i class="fas ${n[1]}"></i><span><b>${n[2]}</b></span></a>`).join('')); }
     if (a === 'reintentar') { S.resExamen = null; return route(); }
     if (a === 'cancelex') return nav('examenes');
     if (a === 'newasig') return dlgAsignatura();
@@ -821,7 +866,7 @@ document.addEventListener('click', async e => {
     }
     if (a === 'matgrupo') return dlgMatricularGrupo();
     if (a === 'matalum') return dlgMatricularAlumnos();
-    if (a === 'quitar') { if (confirm('¿Quitar a este estudiante de la asignatura?')) { await API.call('desmatricular', { auth: authCod(), asigId: S.asigId, usuario: t.dataset.user }); toast('Estudiante quitado.'); return reroute(); } return; }
+    if (a === 'quitar') { if (!esDir()) throw new Error('Solo rectoría, decanato o secretaría pueden retirar estudiantes.'); if (confirm('¿Quitar a este estudiante de la asignatura?')) { await API.call('desmatricular', { auth: authCod(), asigId: S.asigId, usuario: t.dataset.user }); toast('Estudiante retirado de la asignatura.'); return reroute(); } return; }
     if (a === 'nanuncio') { nav('anuncios'); setTimeout(() => $('#at')?.focus(), 300); return; }
     if (a === 'aedit') { const an = S.anuncios.find(x => x.id === id); $('#aid').value = an.id; $('#at').value = an.titulo; $('#ag').value = an.tag || ''; $('#ab').value = an.cuerpo; $('#ap').checked = !!an.pin; $('#abtn').innerHTML = '<i class="fas fa-check"></i> Guardar cambios'; $('#acan').style.display = ''; $('#at').focus(); return; }
     if (a === 'acancel') { $('#aid').value = ''; $('#af2').reset(); $('#abtn').innerHTML = '<i class="fas fa-bullhorn"></i> Publicar anuncio'; $('#acan').style.display = 'none'; return; }
