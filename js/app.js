@@ -213,7 +213,7 @@ async function route() {
     if (r === 'revision') S.reviewAttempt = await API.call('getIntentoDetalle', { auth: authCod(), intentoId: a });
     if (r === 'progreso' && esStaff()) S.intentosAsig = await API.call('getIntentosAsig', { auth: authCod(), asigId: S.asigId });
     if (r === 'examen') { S.resExamen = null; S.examenActual = await API.call('getExamen', { id: a }); }
-    if (r === 'examen-editar' && a !== 'nuevo') { const ex = await API.call('getExamen', { id: a }); S.editExam = ex; S.editQs = ex.preguntas.map(q => ({ ...q })); }
+    if (r === 'examen-editar' && a !== 'nuevo') { const ex = await API.call('getExamen', { id: a }); S.editExam = ex; S.editQs = ex.preguntas.map(q => ({ ...q, tipo: ['sm','vf','red'].includes(q.tipo) ? q.tipo : 'red', metadata: q.tipo === 'red' ? (q.metadata || {}) : {} })); }
     if (r === 'examen-editar' && a === 'nuevo') { S.editExam = { titulo: '', descripcion: '', visible: true }; S.editQs = []; }
     if (r === 'direccion') { S.resumen = await API.call('getResumen', { auth: authCod() }); S.profesores = await API.call('getProfesores', { auth: authCod() }); }
     if (r === 'base') S.estudiantes = await API.call('getEstudiantes', { auth: authCod() });
@@ -818,7 +818,7 @@ VIEW['examen-editar'] = () => {
   <a class="btn sec" href="#/examenes">Cancelar</a></div></form>`;
 };
 function qcardHtml(q, i) {
-  const type = q.tipo || 'sm', meta = q.metadata || {}, autoChoice = ['sm','vf'].includes(type);
+  const type = ['sm','vf','red'].includes(q.tipo) ? q.tipo : 'red', meta = q.metadata || {};
   const ops = type === 'vf' ? ['Verdadero','Falso'] : (q.opciones || ['','','','']);
   let detail = '', promptHtml = esc(q.texto || '');
   if (type === 'sm' || type === 'vf') detail = `<div class="opts">${ops.map((o,k)=>`<div><input type="radio" name="c${i}" data-f="correcta" value="${k}" ${q.correcta===k?'checked':''}><input type="text" data-oi="${k}" data-f="opt" value="${esc(o)}" placeholder="Opción ${k+1}" ${type==='vf'?'disabled':''}></div>`).join('')}</div><small>Selecciona la respuesta correcta.</small>`;
@@ -1076,7 +1076,7 @@ BIND.estudiantes = () => { /* acciones por delegación global */ };
 BIND.resultados = () => { /* idem */ };
 BIND.revision = () => {
   const f=$('#reviewform'); if(!f)return;
-  f.onsubmit=async e=>{e.preventDefault();const a=S.reviewAttempt.intento;const calificaciones=S.reviewAttempt.preguntas.filter(q=>['comprension','red'].includes(q.tipo)).map(q=>({preguntaId:q.id,puntos:Number(f.querySelector('[name="score_'+q.id+'"]').value)}));try{await API.call('revisarIntento',{intentoId:a.id,calificaciones,comentario:$('#reviewcomment').value});toast('Calificación final guardada.');nav('resultados/'+a.examenId);}catch(ex){toast(ex.message);}};
+  f.onsubmit=async e=>{e.preventDefault();const a=S.reviewAttempt.intento;const calificaciones=S.reviewAttempt.preguntas.filter(q=>q.tipo === 'red').map(q=>({preguntaId:q.id,puntos:Number(f.querySelector('[name="score_'+q.id+'"]').value)}));try{await API.call('revisarIntento',{intentoId:a.id,calificaciones,comentario:$('#reviewcomment').value});toast('Calificación final guardada.');nav('resultados/'+a.examenId);}catch(ex){toast(ex.message);}};
 };
 
 BIND.resumen = () => { /* idem */ };
