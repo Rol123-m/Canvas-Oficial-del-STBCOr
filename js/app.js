@@ -242,15 +242,15 @@ const docHtml = txt => String(txt || '').split(/\n\n+/).map(b => {
 const vocabHtml = c => { try { const f = (JSON.parse(c).filas || []); return `<div class="vw-grid">${f.map(r => `<div class="vw"><span class="vw-g gk">${esc(r[0])}</span><span class="vw-e">${esc(r[1] || '')}</span>${r[2] ? `<small>${esc(r[2])}</small>` : ''}</div>`).join('')}</div>`; } catch { return '<p>Sin datos.</p>'; } };
 const recursosHtml = c => { try {
   const it = (JSON.parse(c).items || []);
-  return \`<div class="grid gA">\${it.map(r => {
+  return `<div class="grid gA">${it.map(r => {
     const url = String(r.u || '');
     const safe = /^https?:\/\//i.test(url) ? url : '';
     const kind = r.k || (/\.html?\.txt(?:$|[?#])/i.test(url) ? 'html' : /\.(?:png|jpe?g|webp|gif)(?:$|[?#])/i.test(url) ? 'image' : 'link');
-    const media = safe && kind === 'image' ? \`<a href="\${esc(safe)}" target="_blank" rel="noopener"><img class="res-img" src="\${esc(safe)}" alt="\${esc(r.t)}" loading="lazy"></a>\`
-      : safe && kind === 'html' ? \`<iframe class="res-html" data-html-src="\${esc(safe)}" title="\${esc(r.t)}" sandbox="allow-scripts" referrerpolicy="no-referrer" loading="lazy"></iframe>\` : '';
-    const action = safe && kind === 'link' ? \`<a class="btn sec sm" href="\${esc(safe)}" target="_blank" rel="noopener">\${esc(r.b || 'Abrir')} <i class="fas fa-up-right-from-square"></i></a>\` : '';
-    return \`<div class="card res"><i class="fas \${kind === 'image' ? 'fa-image' : kind === 'html' ? 'fa-code' : safe ? 'fa-up-right-from-square' : 'fa-hourglass'} big"></i><h3>\${esc(r.t)}</h3><p>\${esc(r.d || '')}</p>\${media}\${action}\${!safe ? '<span class="tag">Recurso sin URL válida</span>' : ''}</div>\`;
-  }).join('')}</div>\`;
+    const media = safe && kind === 'image' ? `<a href="${esc(safe)}" target="_blank" rel="noopener"><img class="res-img" src="${esc(safe)}" alt="${esc(r.t)}" loading="lazy"></a>`
+      : safe && kind === 'html' ? `<iframe class="res-html" data-html-src="${esc(safe)}" title="${esc(r.t)}" sandbox="allow-scripts" referrerpolicy="no-referrer" loading="lazy"></iframe>` : '';
+    const action = safe && kind === 'link' ? `<a class="btn sec sm" href="${esc(safe)}" target="_blank" rel="noopener">${esc(r.b || 'Abrir')} <i class="fas fa-up-right-from-square"></i></a>` : '';
+    return `<div class="card res"><i class="fas ${kind === 'image' ? 'fa-image' : kind === 'html' ? 'fa-code' : safe ? 'fa-up-right-from-square' : 'fa-hourglass'} big"></i><h3>${esc(r.t)}</h3><p>${esc(r.d || '')}</p>${media}${action}${!safe ? '<span class="tag">Recurso sin URL válida</span>' : ''}</div>`;
+  }).join('')}</div>`;
 } catch { return '<p>Sin datos.</p>'; } };
 
 async function cargarRecursosHtml() {
@@ -783,13 +783,13 @@ VIEW.matrizProgreso = () => {
   }).join('') || '<tr><td colspan="99" style="text-align:center;color:var(--mut)">Sin matriculados.</td></tr>'}
   </tbody></table></div>`;
 };
-VIEW.estudiantes = () => \`<div class="ph"><h2>Estudiantes de la asignatura</h2><p>\${esc(asig()?.nombre || '')} · \${S.matriculados.length} matriculados</p></div>
+VIEW.estudiantes = () => `<div class="ph"><h2>Estudiantes de la asignatura</h2><p>${esc(asig()?.nombre || '')} · ${S.matriculados.length} matriculados</p></div>
 <div class="rowtools"><button class="btn" data-act="matgrupo"><i class="fas fa-users"></i> Añadir grupo completo</button>
 <button class="btn sec" data-act="matalum"><i class="fas fa-user-plus"></i> Añadir alumnos</button>
-\${esDir() ? '<a class="btn sec" href="#/base"><i class="fas fa-database"></i> Base general de estudiantes</a>' : ''}</div>
+${esDir() ? '<a class="btn sec" href="#/base"><i class="fas fa-database"></i> Base general de estudiantes</a>' : ''}</div>
 <div class="card tw"><table><thead><tr><th>Estudiante</th><th>Grupo</th><th>Usuario</th><th>Estado</th><th></th></tr></thead><tbody>
-\${[...S.matriculados].sort((a, b) => a.grupo.localeCompare(b.grupo) || a.nombre.localeCompare(b.nombre)).map(m => \`<tr><td><b>\${esc(m.nombre)}</b></td><td>\${esc(m.grupo)}</td><td class="mono">\${esc(m.usuario)}</td><td><span class="badge \${m.estado === 'Activo' ? '' : 'off'}">\${esc(m.estado)}</span></td><td>\${esDir() ? \`<button class="btn sec sm" data-act="quitar" data-user="\${esc(m.usuario)}"><i class="fas fa-user-minus"></i> Quitar</button>\` : '<span class="tag">Solo consulta</span>'}</td></tr>\`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--mut);padding:1.4rem">Nadie matriculado aún. Usa «Añadir grupo completo».</td></tr>'}
-</tbody></table></div>\`;
+${[...S.matriculados].sort((a, b) => a.grupo.localeCompare(b.grupo) || a.nombre.localeCompare(b.nombre)).map(m => `<tr><td><b>${esc(m.nombre)}</b></td><td>${esc(m.grupo)}</td><td class="mono">${esc(m.usuario)}</td><td><span class="badge ${m.estado === 'Activo' ? '' : 'off'}">${esc(m.estado)}</span></td><td>${esDir() ? `<button class="btn sec sm" data-act="quitar" data-user="${esc(m.usuario)}"><i class="fas fa-user-minus"></i> Quitar</button>` : '<span class="tag">Solo consulta</span>'}</td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--mut);padding:1.4rem">Nadie matriculado aún. Usa «Añadir grupo completo».</td></tr>'}
+</tbody></table></div>`;
 VIEW.ajustes = () => { const a = asig(); return `<div class="ph"><h2>Ajustes de la asignatura</h2><p>Personaliza el nombre, la descripción y el color.</p></div>
 <form id="ajf"><div class="card" style="margin-bottom:1.1rem">
 <div class="fld"><label>Nombre</label><div class="in"><input id="ajn" required value="${esc(a?.nombre || '')}"></div></div>
