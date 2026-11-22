@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="STBCOr Gestión de Aulas">
+ <defs>
+  <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffe29a"/><stop offset=".48" stop-color="#d7a642"/><stop offset="1" stop-color="#a96f1e"/></linearGradient>
+  <linearGradient id="page" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fffaf0"/><stop offset="1" stop-color="#e9dfca"/></linearGradient>
+  <radialGradient id="glow"><stop stop-color="#f4c45c" stop-opacity=".32"/><stop offset="1" stop-color="#f4c45c" stop-opacity="0"/></radialGradient>
+ </defs>
+ <rect width="512" height="512" rx="94" fill="#071f3b"/>
+ <circle cx="256" cy="250" r="190" fill="url(#glow)"/>
+ <path d="M75 197a181 181 0 0 1 362 0h-23a158 158 0 0 0-316 0z" fill="url(#gold)"/>
+ <g fill="url(#gold)">
+  <path d="M70 201h112v16H70zM83 222h86l-8 15H91zM95 241h62v145H95zM82 386h88v17H82z"/>
+  <path d="M330 201h112v16H330zM343 222h86l-8 15h-70zM355 241h62v145h-62zM342 386h88v17h-88z"/>
+ </g>
+ <path d="M256 166c-4 40-42 57-50 96-7 33 10 57 35 70-4-23 4-38 22-54 17-16 26-37 17-61-5-14-17-32-24-51z" fill="url(#gold)"/>
+ <path d="M265 231c-1 27-27 40-30 65-2 17 7 29 20 38-1-16 8-24 19-35 14-15 17-30 8-46-4-8-11-15-17-22z" fill="#f8d47e"/>
+ <path d="M75 421c58-20 112-26 181-7 69-19 123-13 181 7l-25 30c-53-15-100-17-156-1-56-16-103-14-156 1z" fill="url(#gold)"/>
+ <path d="M103 395c48-20 100-23 153 12 53-35 105-32 153-12l-28 31c-45-12-84-8-125 17-41-25-80-29-125-17z" fill="url(#page)"/>
+ <path d="M256 407v36M122 415c44-12 86-8 134 17M390 415c-44-12-86-8-134 17" fill="none" stroke="#0b2b4d" stroke-width="8" stroke-linecap="round"/>
+ <path d="M62 463h388" stroke="url(#gold)" stroke-width="9" stroke-linecap="round"/>
+</svg>
