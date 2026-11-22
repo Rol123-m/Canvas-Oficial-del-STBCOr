@@ -208,7 +208,7 @@ async function route() {
     if (['panel', 'modulos', 'modulo', 'examenes', 'examen', 'examen-editar', 'resultados', 'anuncios', 'foro', 'progreso', 'resumen', 'estudiantes', 'ajustes'].includes(r)) await loadAsigData();
     if (r === 'mis') S.anunciosTodas = await Promise.all(S.asigs.map(async asg => ({ asig, anuncios: await API.call('getAnuncios', { asigId: asg.id }) })));
     if (r === 'foro') S.chat = await API.call('getForo', { asigId: S.asigId, threadId: a || '' });
-    if (esEst() && ['panel', 'examenes', 'progreso', 'modulos'].includes(r)) S.misNotas = await API.call('getMisNotas', { usuario: S.sesion.usuario, clave: S.sesion.clave, asigId: S.asigId });
+    if (esEst() && ['panel', 'examenes', 'progreso', 'modulos', 'examen'].includes(r)) S.misNotas = await API.call('getMisNotas', { usuario: S.sesion.usuario, clave: S.sesion.clave, asigId: S.asigId });
     if (r === 'resultados') S.resIntentos = await API.call('getIntentos', { auth: authCod(), examenId: a });
     if (r === 'revision') S.reviewAttempt = await API.call('getIntentoDetalle', { auth: authCod(), intentoId: a });
     if (r === 'progreso' && esStaff()) S.intentosAsig = await API.call('getIntentosAsig', { auth: authCod(), asigId: S.asigId });
@@ -363,6 +363,9 @@ VIEW.examen = id => {
     <span class="grow" style="flex:1"></span><button class="btn sec" data-act="reintentar"><i class="fas fa-rotate"></i> Volver a exámenes</button></div>
     <div class="card"><h3>Resumen de respuestas</h3>${r.detalle.map((d, i) => `<div class="rv ${d.ok === null ? '' : d.ok ? 'ok' : 'bad'}"><div><b>${i + 1}. ${esc(d.texto)}</b><small>${d.ok === null ? 'Pendiente de revisión docente' : d.ok ? 'Correcta' : 'Incorrecta'} · ${d.obtenido}/${d.puntos} puntos</small></div></div>`).join('')}</div>`;
   }
+  const previous = S.misNotas.find(n => n.examenId === id);
+  if (previous) return `<div class="ph"><h2>${esc(x.titulo)}</h2><p>Este examen ya fue entregado. Cada estudiante dispone de una sola oportunidad.</p></div>
+    <div class="card"><h3>${previous.estadoRevision === 'pending' ? 'Pendiente de revisión del profesor' : 'Calificación final'}</h3><p>${previous.estadoRevision === 'pending' ? 'La parte automática se ha calificado. La nota definitiva aparecerá cuando el profesor revise las respuestas de comprensión.' : (previous.puntaje + ' / ' + previous.total + ' puntos')}</p><a class="btn sec" href="#/examenes">Volver a exámenes</a></div>`;
   return `<div class="ph"><h2>${esc(x.titulo)}</h2><p>${esc(x.descripcion || '')}</p></div>
   <form id="xf"><div class="card" style="margin-bottom:1.1rem">${x.preguntas.map((q, i) => {
     const meta = q.metadata || {};
