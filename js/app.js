@@ -359,7 +359,7 @@ VIEW.examen = id => {
   if (S.resExamen) {
     const r = S.resExamen;
     return `<div class="ph"><h2>${esc(x.titulo)}</h2><p>Resultado de tu intento</p></div>
-    <div class="card" style="display:flex;gap:1.2rem;align-items:center;margin-bottom:1.2rem">${ring(r.pct, 'dk')}<div><h3 style="margin:0">${r.puntaje} de ${r.total} puntos automáticos</h3><p style="color:var(--mut);font-size:.9rem">${r.pendienteRevision ? 'Tu examen incluye respuestas que debe revisar el profesor. La nota todavía es provisional.' : 'Tu examen fue calificado automáticamente.'}</p></div>
+    <div class="card" style="display:flex;gap:1.2rem;align-items:center;margin-bottom:1.2rem">${ring(r.pct, 'dk')}<div><h3 style="margin:0">${r.puntaje} de ${r.totalAutomatico} puntos automáticos</h3><p style="color:var(--mut);font-size:.9rem">${r.pendienteRevision ? 'Tu examen incluye respuestas que debe revisar el profesor. La nota todavía es provisional.' : 'Tu examen fue calificado automáticamente.'}</p></div>
     <span class="grow" style="flex:1"></span><button class="btn sec" data-act="reintentar"><i class="fas fa-rotate"></i> Volver a exámenes</button></div>
     <div class="card"><h3>Resumen de respuestas</h3>${r.detalle.map((d, i) => `<div class="rv ${d.ok === null ? '' : d.ok ? 'ok' : 'bad'}"><div><b>${i + 1}. ${esc(d.texto)}</b><small>${d.ok === null ? 'Pendiente de revisión docente' : d.ok ? 'Correcta' : 'Incorrecta'} · ${d.obtenido}/${d.puntos} puntos</small></div></div>`).join('')}</div>`;
   }
@@ -1035,7 +1035,7 @@ BIND['examen-editar'] = () => {
     if (el.dataset.f === 'puntos') q.puntos = +el.value || 1;
     if (el.dataset.f === 'opt') { q.opciones = q.opciones || ['', '', '', '']; q.opciones[+el.dataset.oi] = el.value; }
     if (el.dataset.f === 'accepted') { q.metadata = q.metadata || {}; q.metadata.accepted = el.value.split('|').map(x => x.trim()).filter(Boolean); }
-    if (el.dataset.f === 'pairs') { q.metadata = q.metadata || {}; q.metadata.pairs = el.value.split('\\n').map(line => line.split('|').map(x => x.trim())).filter(x => x.length >= 2 && x[0] && x[1]).map(x => ({left:x[0],right:x[1]})); q.metadata.leftItems = q.metadata.pairs.map(x=>x.left); q.metadata.rightOptions = q.metadata.pairs.map(x=>x.right); }
+    if (el.dataset.f === 'pairs') { q.metadata = q.metadata || {}; q.metadata.pairs = el.value.split('\n').map(line => line.split('|').map(x => x.trim())).filter(x => x.length >= 2 && x[0] && x[1]).map(x => ({left:x[0],right:x[1]})); q.metadata.leftItems = q.metadata.pairs.map(x=>x.left); q.metadata.rightOptions = q.metadata.pairs.map(x=>x.right); }
     if (el.dataset.f === 'rubric') { q.metadata = q.metadata || {}; q.metadata.rubric = el.value; }
   });
   $('#view').addEventListener('change', e => {
