@@ -499,7 +499,7 @@ BIND.examen = id => {
       S.resExamen = await API.call('enviarIntento', { examenId: id, respuestas });
       await loadAsigData();
       $('#view').innerHTML = VIEW.examen(id); BIND.examen(id); window.scrollTo(0, 0);
-      toast('Respuestas enviadas: ' + S.resExamen.puntaje + '/' + S.resExamen.total);
+      toast(S.resExamen.pendienteRevision ? 'Parte automática corregida. Comprensión pendiente de revisión.' : 'Examen calificado: ' + S.resExamen.puntaje + '/' + S.resExamen.total);
     } catch (ex2) { toast(ex2.message); btn.disabled = false; }
   };
 };
