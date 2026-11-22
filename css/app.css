@@ -362,3 +362,10 @@ main{min-width:0}
 /* Módulos de lección con enlaces al repositorio de origen */
 .lesson-intro{display:flex;align-items:center;gap:1rem;margin-bottom:1rem}.lesson-intro p{margin:0;color:var(--mut)}.lesson-time{font-weight:700;color:var(--navy);white-space:nowrap}.lesson-page{display:flex;flex-direction:column;gap:.6rem}.lesson-page h3{margin:.3rem 0 .6rem}.lesson-page .btn{align-self:flex-start}
 @media(max-width:560px){.lesson-intro{align-items:flex-start;flex-direction:column}.lesson-page .btn{width:100%;justify-content:center}}
+
+/* Respuesta escrita en preguntas de comprensión y desarrollo */
+.answer-writing{display:block;width:100%;margin-top:.75rem}
+.answer-writing textarea{display:block;width:100%;min-height:220px;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;background:#fff;padding:1rem;font:inherit;line-height:1.6;resize:vertical;outline:0}
+.answer-writing textarea:focus{border-color:#7aa5d8;box-shadow:0 0 0 3px #dbe8f6}
+.answer-writing small{display:block;margin-top:.5rem;color:var(--mut);line-height:1.45}
+.answer-submission{min-height:90px;padding:1rem;border:1px solid var(--line);border-radius:10px;background:#fff;line-height:1.6}
