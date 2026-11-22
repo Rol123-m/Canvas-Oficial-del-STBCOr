@@ -148,7 +148,9 @@ async function uploadResourceToRepository(subjectId: string, filename: string, m
   const max = isHtml ? 1024 * 1024 : 5 * 1024 * 1024;
   if (bytes.length < 1 || bytes.length > max) fail(isHtml ? "Los archivos HTML no pueden superar 1 MB." : "Las imágenes no pueden superar 5 MB.");
   const stem = raw.slice(0, -ext.length).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 55) || "recurso";
-  const safeName = stem + "-" + crypto.randomUUID().slice(0, 8) + ext;
+  // Las páginas HTML se publican como .html.txt (text/plain) y la app las muestra
+  // mediante iframe srcdoc con sandbox, evitando ejecución en el origen principal.
+  const safeName = stem + "-" + crypto.randomUUID().slice(0, 8) + ext + (isHtml ? ".txt" : "");
   const path = "recursos/" + encodeURIComponent(subjectId) + "/" + encodeURIComponent(safeName);
   const response = await fetch("https://api.github.com/repos/Rol123-m/Canvas-Oficial-del-STBCOr/contents/" + path, {
     method: "PUT",
