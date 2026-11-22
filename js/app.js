@@ -396,7 +396,7 @@ VIEW.examen = id => {
     else if (q.tipo === 'rel') {
       const leftItems = meta.leftItems || meta.pairs?.map(p => p.left) || [];
       const rightOptions = meta.rightOptions || meta.pairs?.map(p => p.right) || [];
-      const shuffled = rightOptions.map((label,k)=>({label,index:k})).sort(()=>Math.random()-.5);
+      const shuffled = rightOptions.map((label,k)=>({label,index:k})); for (let k = shuffled.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [shuffled[k], shuffled[j]] = [shuffled[j], shuffled[k]]; }
       field = `<div class="matching-list">${leftItems.map((left,j) => `<label class="matching-row"><span>${esc(left)}</span><select name="q${i}_${j}" required><option value="">Selecciona correspondencia…</option>${shuffled.map(o => `<option value="pair:${o.index}">${esc(o.label)}</option>`).join('')}</select></label>`).join('')}</div><small>Utiliza cada correspondencia una sola vez.</small>`;
     }
     else if (q.tipo === 'comprension' || q.tipo === 'red') field = `<div class="fld answer-writing"><label for="q${i}">Tu respuesta escrita</label><textarea id="q${i}" name="q${i}" rows="9" minlength="10" maxlength="12000" required placeholder="Escribe aquí tu respuesta completa. Puedes desarrollar tus ideas, justificar tu análisis y citar el texto cuando corresponda."></textarea><small>Esta respuesta quedará guardada y será revisada por el profesor.</small></div>`;
