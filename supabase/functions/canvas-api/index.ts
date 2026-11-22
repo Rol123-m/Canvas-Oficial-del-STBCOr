@@ -104,6 +104,48 @@ const mapUser = (u: any) => ({ id: u.id, nombre: u.full_name, usuario: u.usernam
 const mapSubject = (a: any) => ({ id: a.id, nombre: a.name, descripcion: a.description, color: a.color, profesor: a.professor_username || "", profesorNombre: [a.professor_name, a.professor2_name].filter(Boolean).join(" · "), segundoProfesor: a.professor2_username || "", segundoProfesorNombre: a.professor2_name || "", profesoresNombres: [a.professor_name, a.professor2_name].filter(Boolean).join(" · "), chatAbierto: a.chat_open ? "Si" : "No", creada: a.created_at });
 const mapModule = (m: any) => ({ id: m.id, asignaturaId: m.subject_id, titulo: m.title, icono: m.icon, tipo: m.kind, contenido: m.content, orden: m.sort_order, visible: m.visible });
 const mapExam = (e: any) => ({ id: e.id, asignaturaId: e.subject_id, titulo: e.title, descripcion: e.description, visible: e.visible, creado: e.created_at });
+function normalizeAssessmentText(value: any): string {
+  return String(value ?? "").normalize("NFC").toLowerCase().trim().replace(/\s+/g, " ");
+}
+function gradeFillQuestion(raw: any, metadata: any, points: number) {
+  const configured = Array.isArray(metadata?.blanks) && metadata.blanks.length
+    ? metadata.blanks
+    : [Array.isArray(metadata?.accepted) ? metadata.accepted : [metadata?.correct_text || ""]];
+  const answers = Array.isArray(raw) ? raw : [raw];
+  let matched = 0;
+  configured.forEach((accepted: any, index: number) => {
+    const response = normalizeAssessmentText(answers[index]);
+    const alternatives = (Array.isArray(accepted) ? accepted : [accepted])
+      .map((item: any) => normalizeAssessmentText(item)).filter(Boolean);
+    if (response && alternatives.includes(response)) matched++;
+  });
+  const earned = configured.length ? points * matched / configured.length : 0;
+  return { ok: configured.length > 0 && matched === configured.length, earned, matched, count: configured.length };
+}
+function gradeMatchingQuestion(raw: any, metadata: any, points: number) {
+  const pairs = Array.isArray(metadata?.pairs) ? metadata.pairs : [];
+  const submitted = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  const used = new Set<string>();
+  let matched = 0;
+  pairs.forEach((pair: any, index: number) => {
+    const value = String(submitted[pair.left] ?? "").trim();
+    if (!value) return;
+    const token = value.match(/^pair:(\d+)$/);
+    if (token) {
+      const key = "pair:" + token[1];
+      if (Number(token[1]) === index && !used.has(key)) { matched++; used.add(key); }
+      return;
+    }
+    const normalized = normalizeAssessmentText(value);
+    const right = normalizeAssessmentText(pair.right);
+    if (normalized && normalized === right && !used.has("right:" + normalized)) {
+      matched++;
+      used.add("right:" + normalized);
+    }
+  });
+  const earned = pairs.length ? points * matched / pairs.length : 0;
+  return { ok: pairs.length > 0 && matched === pairs.length, earned, matched, count: pairs.length };
+}
 const mapQuestion = (q: any, reveal = false) => {
   const metadata: any = { ...(q.metadata || {}) };
   if (!reveal) { delete metadata.accepted; delete metadata.correct_text; delete metadata.pairs; delete metadata.model_answer; delete metadata.rubric; }
@@ -428,7 +470,42 @@ async function handle(action: string, p: any, u: any) {
         id = uid("x");
         await insert("exams", { id, subject_id: ex.asignaturaId, title: ex.titulo, description: ex.descripcion || "", visible: ex.visible !== false });
       }
-      const qs = (ex.preguntas || []).map((q: any, i: number) => ({ id: uid("q"), exam_id: id, kind: q.tipo || "sm", prompt: q.texto || "", options: q.tipo === "vf" ? ["Verdadero", "Falso"] : (q.opciones || []), correct_answer: ["comprension", "red"].includes(q.tipo) ? 0 : (q.tipo === "emp" ? 0 : Number(q.correcta || 0)), metadata: q.metadata || {}, points: Number(q.puntos || 1), sort_order: i + 1 }));
+      const qs = (ex.preguntas || []).map((q: any, i: number) => {
+        const kind = q.tipo || "sm";
+        const metadata: any = { ...(q.metadata || {}) };
+        const prompt = String(q.texto || "").trim();
+        if (!prompt) fail("La pregunta " + (i + 1) + " necesita un enunciado.");
+        if (kind === "emp") {
+          const blanks = Array.isArray(metadata.blanks) && metadata.blanks.length
+            ? metadata.blanks
+            : (Array.isArray(metadata.accepted) && metadata.accepted.length ? [metadata.accepted] : []);
+          if (!blanks.length || blanks.some((answers: any) => !Array.isArray(answers) || !answers.some((v: any) => String(v || "").trim()))) {
+            fail("La pregunta de completar " + (i + 1) + " necesita al menos una respuesta correcta por espacio.");
+          }
+          const markers = Array.from(prompt.matchAll(/\{\{(\d+)\}\}/g));
+          if (markers.length && markers.length !== blanks.length) fail("La pregunta " + (i + 1) + " tiene " + markers.length + " marcadores, pero " + blanks.length + " espacios configurados.");
+          if (!markers.length && blanks.length !== 1) fail("La pregunta " + (i + 1) + " tiene varios espacios: utiliza {{1}}, {{2}}, etc. en el enunciado.");
+          metadata.blanks = blanks.map((answers: any) => answers.map((v: any) => String(v).trim()).filter(Boolean));
+          delete metadata.accepted;
+        }
+        if (kind === "rel") {
+          const pairs = Array.isArray(metadata.pairs) ? metadata.pairs.map((pair: any) => ({ left: String(pair.left || "").trim(), right: String(pair.right || "").trim() })) : [];
+          if (pairs.length < 2 || pairs.some((pair: any) => !pair.left || !pair.right)) fail("La pregunta de emparejar " + (i + 1) + " necesita al menos dos pares completos.");
+          const leftKeys = pairs.map((pair: any) => normalizeAssessmentText(pair.left));
+          const rightKeys = pairs.map((pair: any) => normalizeAssessmentText(pair.right));
+          if (new Set(leftKeys).size !== pairs.length) fail("La pregunta de emparejar " + (i + 1) + " tiene elementos repetidos en la columna izquierda.");
+          if (new Set(rightKeys).size !== pairs.length) fail("La pregunta de emparejar " + (i + 1) + " tiene correspondencias repetidas en la columna derecha.");
+          metadata.pairs = pairs;
+          metadata.leftItems = pairs.map((pair: any) => pair.left);
+          metadata.rightOptions = pairs.map((pair: any) => pair.right);
+        }
+        return {
+          id: uid("q"), exam_id: id, kind, prompt,
+          options: kind === "vf" ? ["Verdadero", "Falso"] : (q.opciones || []),
+          correct_answer: ["comprension", "red", "emp"].includes(kind) ? 0 : Number(q.correcta || 0),
+          metadata, points: Number(q.puntos || 1), sort_order: i + 1
+        };
+      });
       if (qs.length) { const { error } = await db.from("questions").insert(qs); if (error) throw error; }
       return { id };
     }
@@ -446,11 +523,28 @@ async function handle(action: string, p: any, u: any) {
       const answers = Array.isArray(p.respuestas) ? p.respuestas : [];
       if (answers.length !== qs.length) fail("No se recibieron todas las respuestas del examen.");
       for (let i = 0; i < qs.length; i++) {
-        if (qs[i].kind === "comprension" || qs[i].kind === "red") {
+        const question = qs[i], meta = question.metadata || {};
+        if (question.kind === "comprension" || question.kind === "red") {
           const written = typeof answers[i] === "string" ? answers[i].trim() : "";
           if (written.length < 10) fail("Completa la respuesta escrita de la pregunta " + (i + 1) + " (mínimo 10 caracteres).");
           if (written.length > 12000) fail("La respuesta escrita no puede superar 12 000 caracteres.");
           answers[i] = written;
+        } else if (question.kind === "emp") {
+          const expected = Array.isArray(meta.blanks) && meta.blanks.length ? meta.blanks.length : 1;
+          const values = Array.isArray(answers[i]) ? answers[i] : [answers[i]];
+          if (values.length !== expected) fail("La pregunta de completar " + (i + 1) + " debe incluir " + expected + " respuesta(s).");
+          const cleaned = values.map((value: any) => String(value ?? "").trim());
+          if (cleaned.some((value: string) => !value)) fail("Completa todos los espacios de la pregunta " + (i + 1) + ".");
+          if (cleaned.some((value: string) => value.length > 500)) fail("Cada respuesta de completar admite hasta 500 caracteres.");
+          answers[i] = cleaned;
+        } else if (question.kind === "rel") {
+          const pairs = Array.isArray(meta.pairs) ? meta.pairs : [];
+          const submitted = answers[i] && typeof answers[i] === "object" && !Array.isArray(answers[i]) ? answers[i] : {};
+          const values = pairs.map((pair: any) => String(submitted[pair.left] ?? "").trim());
+          if (!pairs.length || values.some((value: string) => !value)) fail("Selecciona una correspondencia para cada elemento de la pregunta " + (i + 1) + ".");
+          const tokens = values.map((value: string) => value.match(/^pair:(\d+)$/)?.[1] ?? normalizeAssessmentText(value));
+          if (new Set(tokens).size !== tokens.length) fail("No puedes utilizar la misma correspondencia más de una vez en la pregunta " + (i + 1) + ".");
+          answers[i] = Object.fromEntries(pairs.map((pair: any, j: number) => [pair.left, values[j]]));
         }
       }
       let score = 0; const total = qs.reduce((s, q) => s + Number(q.points || 0), 0);
@@ -461,10 +555,11 @@ async function handle(action: string, p: any, u: any) {
         let ok: boolean | null = false, earned = 0;
         if (kind === "comprension" || kind === "red") { pending = true; ok = null; }
         else if (kind === "sm" || kind === "vf") { const selected = raw === null ? null : Number(raw); ok = selected !== null && selected === Number(q.correct_answer); if (ok) earned = Number(q.points || 0); }
-        else if (kind === "emp") { const norm = (v: any) => String(v ?? "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase().trim().replace(/\\s+/g, " "); const accepted = (meta.accepted || [meta.correct_text || ""]).map((v: any) => norm(v)); ok = raw !== null && norm(raw) !== "" && accepted.includes(norm(raw)); if (ok) earned = Number(q.points || 0); }
-        else if (kind === "rel") { const pairs = meta.pairs || []; const submitted = raw && typeof raw === "object" ? raw : {}; const matched = pairs.filter((pair: any) => String(submitted[pair.left] ?? "") === String(pair.right)); earned = pairs.length ? Number(q.points || 0) * matched.length / pairs.length : 0; ok = pairs.length > 0 && matched.length === pairs.length; }
+        else if (kind === "emp") { const result = gradeFillQuestion(raw, meta, Number(q.points || 0)); ok = result.ok; earned = result.earned; }
+        else if (kind === "rel") { const result = gradeMatchingQuestion(raw, meta, Number(q.points || 0)); ok = result.ok; earned = result.earned; }
         score += earned;
-        return { preguntaId: q.id, tipo: kind, texto: q.prompt, respuesta: raw, opciones: q.options, metadata: meta, correcta: (kind === "sm" || kind === "vf") ? Number(q.correct_answer) : null, ok, puntos: Number(q.points || 0), obtenido: earned };
+        const safeMetadata = kind === "rel" ? { leftItems: meta.leftItems || (meta.pairs || []).map((pair: any) => pair.left), rightOptions: meta.rightOptions || (meta.pairs || []).map((pair: any) => pair.right) } : {};
+        return { preguntaId: q.id, tipo: kind, texto: q.prompt, respuesta: raw, opciones: q.options, metadata: safeMetadata, correcta: (kind === "sm" || kind === "vf") ? Number(q.correct_answer) : null, ok, puntos: Number(q.points || 0), obtenido: earned };
       });
       const attempt = await insert("exam_attempts", { id: uid("i"), exam_id: ex.id, student_username: u.username, student_name: u.full_name, score, total, answers, review_status: pending ? "pending" : "graded" });
       const old = await one("progress", q => q.eq("subject_id", ex.subject_id).eq("student_username", u.username).eq("item_type", "examen").eq("item_id", ex.id));
