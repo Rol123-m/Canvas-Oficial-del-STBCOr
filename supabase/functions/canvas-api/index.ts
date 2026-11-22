@@ -443,6 +443,7 @@ async function handle(action: string, p: any, u: any) {
       const qs = await rows("questions", q => q.eq("exam_id", ex.id).order("sort_order"));
       const answers = Array.isArray(p.respuestas) ? p.respuestas : [];
       let score = 0; const total = qs.reduce((s, q) => s + Number(q.points || 0), 0);
+      const autoTotal = qs.filter(q => q.kind !== "comprension" && q.kind !== "red").reduce((s, q) => s + Number(q.points || 0), 0);
       let pending = false;
       const detail = qs.map((q, i) => {
         const raw = answers[i] ?? null, meta = q.metadata || {}, kind = q.kind;
@@ -458,7 +459,7 @@ async function handle(action: string, p: any, u: any) {
       const old = await one("progress", q => q.eq("subject_id", ex.subject_id).eq("student_username", u.username).eq("item_type", "examen").eq("item_id", ex.id));
       if (old) await patch("progress", old.id, { completed: true, updated_at: now() });
       else await insert("progress", { id: uid("g"), subject_id: ex.subject_id, student_username: u.username, student_name: u.full_name, item_type: "examen", item_id: ex.id, completed: true });
-      return { intentoId: attempt.id, puntaje: score, total, pendienteRevision: pending, pct: total ? Math.round(score / total * 100) : 0, detalle: detail };
+      return { intentoId: attempt.id, puntaje: score, total, totalAutomatico: autoTotal, pendienteRevision: pending, pct: autoTotal ? Math.round(score / autoTotal * 100) : 0, detalle: detail };
     }
     case "getIntentos": {
       const ex = await one("exams", q => q.eq("id", p.examenId)); if (!ex) fail("Examen no encontrado.");
@@ -521,7 +522,7 @@ async function handle(action: string, p: any, u: any) {
       await enrolled(u, p.asigId);
       const exs = await rows("exams", q => q.eq("subject_id", p.asigId));
       if (!exs.length) return [];
-      return (await rows("exam_attempts", q => q.eq("student_username", u.username).in("exam_id", exs.map(x => x.id)).order("attempted_at", { ascending: false }))).map(x => ({ examenId: x.exam_id, puntaje: x.score, total: x.total, fecha: x.attempted_at }));
+      return (await rows("exam_attempts", q => q.eq("student_username", u.username).in("exam_id", exs.map(x => x.id)).order("attempted_at", { ascending: false }))).map(x => ({ examenId: x.exam_id, puntaje: x.review_status === "graded" && x.reviewed_score !== null ? x.reviewed_score : x.score, puntajeAutomatico: x.score, total: x.total, estadoRevision: x.review_status || "graded", comentario: x.feedback || "", fecha: x.attempted_at }));
     }
     case "getAnuncios": {
       await enrolled(u, p.asigId);
