@@ -57,7 +57,7 @@
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', async () => {
       try {
-        registration = await navigator.serviceWorker.register('./sw.js', { scope: './' });
+        registration = await navigator.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' });
         if (registration.waiting && navigator.serviceWorker.controller) showUpdate();
         registration.addEventListener('updatefound', () => {
           const worker = registration.installing;
