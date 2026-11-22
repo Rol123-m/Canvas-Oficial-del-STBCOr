@@ -841,7 +841,7 @@ VIEW.revision = () => {
   const a = d.intento;
   return `<div class="ph"><h2>Revisión del examen</h2><p>${esc(a.nombre)} · ${fmtDT(a.fecha)}</p></div>
   <form id="reviewform"><div class="card"><h3>Calificación automática: ${a.puntaje}/${a.total}</h3>
-  ${d.preguntas.filter(q=>['comprension','red'].includes(q.tipo)).map(q=>{const ans=a.respuestas.find(x=>x.preguntaId===q.id);return `<section class="q"><h4>${esc(q.texto)} <span class="pts">· máximo ${q.puntos}</span></h4><div class="notice" style="white-space:pre-wrap">${esc(ans?.respuesta||'Sin respuesta')}</div>${q.metadata?.rubric?`<p><b>Criterios:</b> ${esc(q.metadata.rubric)}</p>`:''}<label>Puntos otorgados</label><input type="number" name="score_${q.id}" min="0" max="${q.puntos}" step="0.5" value="0" required></section>`}).join('')}
+  ${d.preguntas.filter(q=>['comprension','red'].includes(q.tipo)).map(q=>{const ans=a.respuestas.find(x=>x.preguntaId===q.id);return `<section class="q"><h4>${esc(q.texto)} <span class="pts">· máximo ${q.puntos}</span></h4><div class="notice" style="white-space:pre-wrap">${esc(ans?.respuesta||'Sin respuesta')}</div>${q.metadata?.rubric?`<p><b>Criterios:</b> ${esc(q.metadata.rubric)}</p>`:''}<label>Puntos otorgados</label><input type="number" name="score_${q.id}" min="0" max="${q.puntos}" step="0.25" value="0" required></section>`}).join('')}
   <div class="fld"><label>Observaciones para el estudiante</label><textarea id="reviewcomment" rows="4"></textarea></div>
   <button class="btn" type="submit">Guardar calificación final</button> <a class="btn sec" href="#/resultados/${a.examenId}">Volver a resultados</a></div></form>`;
 };
