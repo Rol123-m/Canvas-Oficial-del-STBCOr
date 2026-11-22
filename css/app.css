@@ -355,3 +355,5 @@ main{min-width:0}
 .forum-detail .fmsgbox{margin:1rem 0}
 .tag.closed{background:#f3e7e7;color:#8a2f3c}
 @media(max-width:560px){.forum-thread-head{align-items:flex-start}.forum-actions{width:100%}.forum-actions .btn,.forum-actions .btn.sec{flex:1}.forum-detail-head{align-items:flex-start}}
+
+.btn.danger{background:#8a2f3c;color:#fff;border-color:#8a2f3c}
