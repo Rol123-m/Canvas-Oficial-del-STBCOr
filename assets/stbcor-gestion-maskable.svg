@@ -1,20 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="STBCOr Gestión de Aulas">
- <defs>
-  <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffe29a"/><stop offset=".48" stop-color="#d7a642"/><stop offset="1" stop-color="#a96f1e"/></linearGradient>
-  <linearGradient id="page" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fffaf0"/><stop offset="1" stop-color="#e9dfca"/></linearGradient>
-  <radialGradient id="glow"><stop stop-color="#f4c45c" stop-opacity=".32"/><stop offset="1" stop-color="#f4c45c" stop-opacity="0"/></radialGradient>
- </defs>
- <rect width="512" height="512" rx="94" fill="#071f3b"/>
- <g transform="translate(51.2 51.2) scale(.8)"><circle cx="256" cy="250" r="190" fill="url(#glow)"/>
- <path d="M75 197a181 181 0 0 1 362 0h-23a158 158 0 0 0-316 0z" fill="url(#gold)"/>
- <g fill="url(#gold)">
-  <path d="M70 201h112v16H70zM83 222h86l-8 15H91zM95 241h62v145H95zM82 386h88v17H82z"/>
-  <path d="M330 201h112v16H330zM343 222h86l-8 15h-70zM355 241h62v145h-62zM342 386h88v17h-88z"/>
- </g>
- <path d="M256 166c-4 40-42 57-50 96-7 33 10 57 35 70-4-23 4-38 22-54 17-16 26-37 17-61-5-14-17-32-24-51z" fill="url(#gold)"/>
- <path d="M265 231c-1 27-27 40-30 65-2 17 7 29 20 38-1-16 8-24 19-35 14-15 17-30 8-46-4-8-11-15-17-22z" fill="#f8d47e"/>
- <path d="M75 421c58-20 112-26 181-7 69-19 123-13 181 7l-25 30c-53-15-100-17-156-1-56-16-103-14-156 1z" fill="url(#gold)"/>
- <path d="M103 395c48-20 100-23 153 12 53-35 105-32 153-12l-28 31c-45-12-84-8-125 17-41-25-80-29-125-17z" fill="url(#page)"/>
- <path d="M256 407v36M122 415c44-12 86-8 134 17M390 415c-44-12-86-8-134 17" fill="none" stroke="#0b2b4d" stroke-width="8" stroke-linecap="round"/>
- <path d="M62 463h388" stroke="url(#gold)" stroke-width="9" stroke-linecap="round"/></g>
-</svg>
+<defs><linearGradient id="gold" x2="1" y2="1"><stop stop-color="#ffe6a3"/><stop offset=".55" stop-color="#d6a342"/><stop offset="1" stop-color="#9d6b25"/></linearGradient><linearGradient id="paper" x2="0" y2="1"><stop stop-color="#fffdf6"/><stop offset="1" stop-color="#e8dfca"/></linearGradient></defs>
+<rect width="512" height="512" fill="#0b2b50"/>
+<g transform="translate(25 25) scale(.9)">
+<rect width="512" height="512" rx="92" fill="#0b2b50"/>
+<circle cx="256" cy="168" r="103" fill="#f8f3e8" stroke="url(#gold)" stroke-width="9"/><circle cx="256" cy="168" r="89" fill="none" stroke="#15395f" stroke-width="3"/>
+<path d="M248 100h16v85h-16zM217 131h78v16h-78z" fill="#174a80"/><path d="M303 105c-3 25-27 36-29 61-2 17 8 28 22 36-2-17 8-27 18-39 12-15 13-30 4-43-4-6-10-11-15-15z" fill="#c84435"/>
+<path d="M178 205q39-22 78 0 39-22 78 0l-11 20q-34-11-67 9-33-20-67-9z" fill="#397c56"/><path d="M211 224q23-16 45 1 22-17 45-1l-4 19q-22-7-41 9-19-16-41-9z" fill="url(#paper)" stroke="#15395f" stroke-width="3"/><path d="M256 225v27" stroke="#15395f" stroke-width="3"/>
+<path d="M55 300Q256 260 457 300" fill="none" stroke="url(#gold)" stroke-width="8" stroke-linecap="round"/>
+<path d="M83 359q83-47 173 17 90-64 173-17l-24 54q-75-24-149 29-74-53-149-29z" fill="url(#paper)" stroke="url(#gold)" stroke-width="7"/><path d="M256 376v65M111 370q72-23 145 24m145-24q-72-23-145 24" fill="none" stroke="#183d62" stroke-width="5" stroke-linecap="round"/>
+<rect x="180" y="296" width="152" height="94" rx="12" fill="#0a2b50" stroke="url(#gold)" stroke-width="6"/><path d="M220 325l36-18 36 18-36 18z" fill="#fff0c9"/><path d="M244 342v17q12 10 24 0v-17" fill="#fff0c9"/>
+<text x="256" y="477" text-anchor="middle" fill="#fff4d7" font-family="Georgia,serif" font-size="51" font-weight="bold">STBCOr</text>
+</g></svg>
