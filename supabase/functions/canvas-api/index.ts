@@ -444,6 +444,15 @@ async function handle(action: string, p: any, u: any) {
       if (priorAttempt) fail("Este examen permite una sola oportunidad y ya fue entregado.");
       const qs = await rows("questions", q => q.eq("exam_id", ex.id).order("sort_order"));
       const answers = Array.isArray(p.respuestas) ? p.respuestas : [];
+      if (answers.length !== qs.length) fail("No se recibieron todas las respuestas del examen.");
+      for (let i = 0; i < qs.length; i++) {
+        if (qs[i].kind === "comprension" || qs[i].kind === "red") {
+          const written = typeof answers[i] === "string" ? answers[i].trim() : "";
+          if (written.length < 10) fail("Completa la respuesta escrita de la pregunta " + (i + 1) + " (mínimo 10 caracteres).");
+          if (written.length > 12000) fail("La respuesta escrita no puede superar 12 000 caracteres.");
+          answers[i] = written;
+        }
+      }
       let score = 0; const total = qs.reduce((s, q) => s + Number(q.points || 0), 0);
       const autoTotal = qs.filter(q => q.kind !== "comprension" && q.kind !== "red").reduce((s, q) => s + Number(q.points || 0), 0);
       let pending = false;
@@ -473,7 +482,7 @@ async function handle(action: string, p: any, u: any) {
       const ex = await one("exams", q => q.eq("id", attempt.exam_id)); if (!ex) fail("Examen no encontrado.");
       await subjectAccess(u, ex.subject_id);
       const qs = await rows("questions", q => q.eq("exam_id", ex.id).order("sort_order"));
-      return { intento: { id: attempt.id, examenId: ex.id, usuario: attempt.student_username, nombre: attempt.student_name, fecha: attempt.attempted_at, puntaje: Number(attempt.score), total: Number(attempt.total), estadoRevision: attempt.review_status || "graded", notaFinal: attempt.reviewed_score, comentario: attempt.feedback, respuestas: attempt.answers || [] }, preguntas: qs.map(q => mapQuestion(q, true)) };
+      return { intento: { id: attempt.id, examenId: ex.id, usuario: attempt.student_username, nombre: attempt.student_name, fecha: attempt.attempted_at, puntaje: Number(attempt.score), total: Number(attempt.total), estadoRevision: attempt.review_status || "graded", notaFinal: attempt.reviewed_score, comentario: attempt.feedback, respuestas: qs.map((q, i) => ({ preguntaId: q.id, respuesta: (attempt.answers || [])[i] ?? null })) }, preguntas: qs.map(q => mapQuestion(q, true)) };
     }
     case "revisarIntento": {
       const attempt = await one("exam_attempts", q => q.eq("id", p.intentoId)); if (!attempt) fail("Intento no encontrado.");
