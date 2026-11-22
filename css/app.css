@@ -357,3 +357,8 @@ main{min-width:0}
 @media(max-width:560px){.forum-thread-head{align-items:flex-start}.forum-actions{width:100%}.forum-actions .btn,.forum-actions .btn.sec{flex:1}.forum-detail-head{align-items:flex-start}}
 
 .btn.danger{background:#8a2f3c;color:#fff;border-color:#8a2f3c}
+
+
+/* Módulos de lección con enlaces al repositorio de origen */
+.lesson-intro{display:flex;align-items:center;gap:1rem;margin-bottom:1rem}.lesson-intro p{margin:0;color:var(--mut)}.lesson-time{font-weight:700;color:var(--navy);white-space:nowrap}.lesson-page{display:flex;flex-direction:column;gap:.6rem}.lesson-page h3{margin:.3rem 0 .6rem}.lesson-page .btn{align-self:flex-start}
+@media(max-width:560px){.lesson-intro{align-items:flex-start;flex-direction:column}.lesson-page .btn{width:100%;justify-content:center}}
