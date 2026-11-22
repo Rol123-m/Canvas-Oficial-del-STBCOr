@@ -25,7 +25,7 @@ const SHELL_FILES = [
 ];
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE_VERSION).then(cache => cache.addAll(SHELL_FILES)));
+  event.waitUntil(caches.open(CACHE_VERSION).then(cache => cache.addAll(SHELL_FILES.map(path => new URL(path, self.registration.scope).href))));
 });
 
 self.addEventListener('activate', event => {
@@ -52,10 +52,10 @@ self.addEventListener('fetch', event => {
       try {
         const response = await fetch(request);
         const cache = await caches.open(CACHE_VERSION);
-        cache.put('./index.html', response.clone());
+        cache.put(new URL('./index.html', self.registration.scope), response.clone());
         return response;
       } catch (_) {
-        return (await caches.match('./index.html')) || (await caches.match('./'));
+        return (await caches.match(new URL('./index.html', self.registration.scope))) || (await caches.match(new URL('./', self.registration.scope)));
       }
     })());
     return;
@@ -73,16 +73,20 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  const isShellAsset = /\.(?:css|js|woff2|png|svg|webmanifest)$/i.test(url.pathname) || url.pathname.endsWith('/index.html');
+  const isShellAsset = /\\.(?:css|js|woff2|png|svg|webmanifest)$/i.test(url.pathname) || url.pathname.endsWith('/index.html');
   if (!isShellAsset) return;
   event.respondWith((async () => {
     const cached = await caches.match(request);
-    if (cached) return cached;
-    const response = await fetch(request);
-    if (response && response.ok) {
-      const cache = await caches.open(CACHE_VERSION);
-      cache.put(request, response.clone());
+    try {
+      const response = await fetch(request);
+      if (response && response.ok) {
+        const cache = await caches.open(CACHE_VERSION);
+        cache.put(request, response.clone());
+      }
+      return response;
+    } catch (error) {
+      if (cached) return cached;
+      throw error;
     }
-    return response;
   })());
 });
