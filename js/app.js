@@ -37,7 +37,7 @@ let S = {
   asigs: [], asigId: null,
   pestanas: [], examenes: [], matriculados: [], anuncios: [], progreso: [],
   estudiantes: [], profesores: [], grupos: [], resumen: null,
-  misNotas: [], resIntentos: [], editQs: [], editExam: null, resExamen: null, ultimo: null,
+  misNotas: [], resIntentos: [], editQs: [], editExam: null, resExamen: null, reviewAttempt: null, ultimo: null,
   anunciosTodas: [], chat: { abierto: false, mensajes: [] }, chatTimer: null
 };
 const rol = () => S.sesion?.rol;
@@ -184,7 +184,7 @@ function bnavLinks() {
 }
 
 /* ---------- router ---------- */
-const ROUTES = ['mis', 'panel', 'inicio', 'modulos', 'modulo', 'examenes', 'examen', 'examen-editar', 'resultados', 'anuncios', 'foro', 'progreso', 'asignaturas', 'resumen', 'estudiantes', 'ajustes', 'direccion', 'base'];
+const ROUTES = ['mis', 'panel', 'inicio', 'modulos', 'modulo', 'examenes', 'examen', 'examen-editar', 'resultados', 'revision', 'anuncios', 'foro', 'progreso', 'asignaturas', 'resumen', 'estudiantes', 'ajustes', 'direccion', 'base'];
 async function route() {
   if (!S.sesion) return boot();
   detenerForo();
@@ -193,7 +193,7 @@ async function route() {
   if (esEst() && r === 'asignaturas') r = 'mis';
   if (esStaff() && r === 'mis') r = 'asignaturas';
   if (!ROUTES.includes(r) || r === 'mas') return nav(esStaff() ? 'resumen' : 'mis');
-  const soloStaff = ['resumen', 'estudiantes', 'examen-editar', 'resultados', 'ajustes', 'asignaturas'];
+  const soloStaff = ['resumen', 'estudiantes', 'examen-editar', 'resultados', 'revision', 'ajustes', 'asignaturas'];
   if (soloStaff.includes(r) && !esStaff()) return nav('mis');
   const soloDireccion = ['direccion', 'base'];
   if (soloDireccion.includes(r) && !esDir()) return nav(esStaff() ? 'resumen' : 'mis');
@@ -210,6 +210,7 @@ async function route() {
     if (r === 'foro') S.chat = await API.call('getForo', { asigId: S.asigId, threadId: a || '' });
     if (esEst() && ['panel', 'examenes', 'progreso', 'modulos'].includes(r)) S.misNotas = await API.call('getMisNotas', { usuario: S.sesion.usuario, clave: S.sesion.clave, asigId: S.asigId });
     if (r === 'resultados') S.resIntentos = await API.call('getIntentos', { auth: authCod(), examenId: a });
+    if (r === 'revision') S.reviewAttempt = await API.call('getIntentoDetalle', { auth: authCod(), intentoId: a });
     if (r === 'progreso' && esStaff()) S.intentosAsig = await API.call('getIntentosAsig', { auth: authCod(), asigId: S.asigId });
     if (r === 'examen') { S.resExamen = null; S.examenActual = await API.call('getExamen', { id: a }); }
     if (r === 'examen-editar' && a !== 'nuevo') { const ex = await API.call('getExamen', { id: a }); S.editExam = ex; S.editQs = ex.preguntas.map(q => ({ ...q })); }
@@ -218,7 +219,7 @@ async function route() {
     if (r === 'base') S.estudiantes = await API.call('getEstudiantes', { auth: authCod() });
     if (r === 'anuncios') localStorage.setItem(KEYSEEN, JSON.stringify(S.anuncios.map(x => x.id)));
     shell();
-    const act = r === 'modulo' ? 'modulos' : r === 'panel' ? 'mis' : ['examen', 'examen-editar', 'resultados'].includes(r) ? 'examenes' : r;
+    const act = r === 'modulo' ? 'modulos' : r === 'panel' ? 'mis' : ['examen', 'examen-editar', 'resultados', 'revision'].includes(r) ? 'examenes' : r;
     $$('.side a,.bnav a').forEach(x => x.classList.toggle('on', (x.dataset.r || '') === r || (x.dataset.r || '') === act));
     $('#view').innerHTML = VIEW[r] ? VIEW[r](a) : VIEW[esStaff() ? 'resumen' : 'inicio']();
     BIND[r] && BIND[r](a);
@@ -358,15 +359,21 @@ VIEW.examen = id => {
   if (S.resExamen) {
     const r = S.resExamen;
     return `<div class="ph"><h2>${esc(x.titulo)}</h2><p>Resultado de tu intento</p></div>
-    <div class="card" style="display:flex;gap:1.2rem;align-items:center;margin-bottom:1.2rem">${ring(r.pct, 'dk')}<div><h3 style="margin:0">${r.puntaje} de ${r.total} puntos</h3><p style="color:var(--mut);font-size:.9rem">La nota quedó registrada para tu profesor.</p></div>
-    <span class="grow" style="flex:1"></span><button class="btn sec" data-act="reintentar"><i class="fas fa-rotate"></i> Reintentar</button></div>
-    <div class="card"><h3>Revisión</h3>${r.detalle.map((d, i) => `<div class="rv ${d.ok ? 'ok' : 'bad'}"><i class="fas ${d.ok ? 'fa-circle-check' : 'fa-circle-xmark'}"></i><div><b>${i + 1}. ${esc(d.texto)}</b>
-    ${d.ok ? '' : `<small>Tu respuesta: ${d.eleccion != null ? esc(d.opciones[d.eleccion] || '—') : 'sin responder'} · Correcta: <b>${esc(d.opciones[d.correcta] || '—')}</b></small>`}</div></div>`).join('')}</div>`;
+    <div class="card" style="display:flex;gap:1.2rem;align-items:center;margin-bottom:1.2rem">${ring(r.pct, 'dk')}<div><h3 style="margin:0">${r.puntaje} de ${r.total} puntos automáticos</h3><p style="color:var(--mut);font-size:.9rem">${r.pendienteRevision ? 'Tu examen incluye respuestas que debe revisar el profesor. La nota todavía es provisional.' : 'Tu examen fue calificado automáticamente.'}</p></div>
+    <span class="grow" style="flex:1"></span><button class="btn sec" data-act="reintentar"><i class="fas fa-rotate"></i> Volver a exámenes</button></div>
+    <div class="card"><h3>Resumen de respuestas</h3>${r.detalle.map((d, i) => `<div class="rv ${d.ok === null ? '' : d.ok ? 'ok' : 'bad'}"><div><b>${i + 1}. ${esc(d.texto)}</b><small>${d.ok === null ? 'Pendiente de revisión docente' : d.ok ? 'Correcta' : 'Incorrecta'} · ${d.obtenido}/${d.puntos} puntos</small></div></div>`).join('')}</div>`;
   }
   return `<div class="ph"><h2>${esc(x.titulo)}</h2><p>${esc(x.descripcion || '')}</p></div>
-  <form id="xf"><div class="card" style="margin-bottom:1.1rem">${x.preguntas.map((q, i) => `<div class="q"><h4>${i + 1}. ${esc(q.texto)} <span class="pts">· ${q.puntos} punto${q.puntos == 1 ? '' : 's'}</span></h4>
-  <div class="vopts">${q.opciones.map((o, k) => `<label class="opt"><input type="radio" name="q${i}" value="${k}" required>${esc(o)}</label>`).join('')}</div></div>`).join('')}</div>
-  <button class="btn" type="submit"><i class="fas fa-paper-plane"></i> Enviar respuestas</button> <button class="btn sec" type="button" data-act="cancelex"><i class="fas fa-xmark"></i> Cancelar</button></form>`;
+  <form id="xf"><div class="card" style="margin-bottom:1.1rem">${x.preguntas.map((q, i) => {
+    const meta = q.metadata || {};
+    let field = '';
+    if (q.tipo === 'sm' || q.tipo === 'vf') field = `<div class="vopts">${q.opciones.map((o, k) => `<label class="opt"><input type="radio" name="q${i}" value="${k}" required>${esc(o)}</label>`).join('')}</div>`;
+    else if (q.tipo === 'emp') field = `<input type="text" name="q${i}" required placeholder="Escribe tu respuesta">`;
+    else if (q.tipo === 'rel') field = `<div class="grid">${(meta.leftItems || []).map((left, j) => `<label class="fld">${esc(left)}<select name="q${i}_${j}" required><option value="">Selecciona…</option>${(meta.rightOptions || []).map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('')}</select></label>`).join('')}</div>`;
+    else field = `<textarea name="q${i}" rows="5" required placeholder="Desarrolla tu respuesta con argumentos y evidencia del texto…"></textarea>`;
+    return `<div class="q"><h4>${i + 1}. ${esc(q.texto)} <span class="pts">· ${q.puntos} puntos · ${['comprension','red'].includes(q.tipo) ? 'Revisión docente' : 'Automática'}</span></h4>${field}</div>`;
+  }).join('')}</div>
+  <button class="btn" type="submit"><i class="fas fa-paper-plane"></i> Enviar examen</button> <button class="btn sec" type="button" data-act="cancelex"><i class="fas fa-xmark"></i> Cancelar</button></form>`;
 };
 VIEW.anuncios = () => {
   const lista = S.anuncios.map(a => `<article class="card ann ${a.pin ? 'pin' : ''}"><div class="ahd"><span class="tag ${a.pin ? 'prog' : ''}"><i class="fas fa-thumbtack"></i> ${esc(a.tag || 'Aviso')}</span><small>${fmtDT(a.fecha)}${a.autor ? ' · ' + esc(a.autor) : ''}</small></div><h3>${esc(a.titulo)}</h3><p>${esc(a.cuerpo)}</p></article>`).join('');
@@ -481,8 +488,12 @@ BIND.examen = id => {
     const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
     try {
       const ex = await API.call('getExamen', { id });
-      const respuestas = ex.preguntas.map((_, i) => { const v = $('#xf').querySelector(`input[name=q${i}]:checked`); return v ? +v.value : null; });
-      S.resExamen = await API.call('enviarIntento', { examenId: id, usuario: S.sesion.usuario, clave: S.sesion.clave, respuestas });
+      const respuestas = ex.preguntas.map((q, i) => {
+        if (q.tipo === 'sm' || q.tipo === 'vf') { const v = f.querySelector(`input[name=q${i}]:checked`); return v ? Number(v.value) : null; }
+        if (q.tipo === 'rel') { const value = {}; (q.metadata?.leftItems || []).forEach((left, j) => { value[left] = f.querySelector(`[name="q${i}_${j}"]`)?.value || ''; }); return value; }
+        return f.querySelector(`[name=q${i}]`)?.value || '';
+      });
+      S.resExamen = await API.call('enviarIntento', { examenId: id, respuestas });
       await loadAsigData();
       $('#view').innerHTML = VIEW.examen(id); BIND.examen(id); window.scrollTo(0, 0);
       toast('Respuestas enviadas: ' + S.resExamen.puntaje + '/' + S.resExamen.total);
@@ -793,16 +804,16 @@ VIEW['examen-editar'] = () => {
   <a class="btn sec" href="#/examenes">Cancelar</a></div></form>`;
 };
 function qcardHtml(q, i) {
-  const sm = q.tipo !== 'vf';
-  const ops = sm ? (q.opciones || ['', '', '', '']) : ['Verdadero', 'Falso'];
-  return `<div class="qcard" data-qi="${i}"><div class="qh"><b>Pregunta ${i + 1}</b><span class="grow"></span>
-  ${i > 0 ? `<button type="button" class="ibtn" data-act="qup"><i class="fas fa-chevron-up"></i></button>` : ''}${i < S.editQs.length - 1 ? `<button type="button" class="ibtn" data-act="qdown"><i class="fas fa-chevron-down"></i></button>` : ''}
-  <button type="button" class="ibtn" data-act="qdel" title="Eliminar"><i class="fas fa-trash"></i></button></div>
-  <div style="display:flex;gap:.6rem"><select data-f="tipo" style="max-width:220px"><option value="sm"${sm ? ' selected' : ''}>Selección múltiple</option><option value="vf"${!sm ? ' selected' : ''}>Verdadero / Falso</option></select>
-  <input type="number" data-f="puntos" min="1" max="100" style="max-width:120px" value="${q.puntos || 2}" title="Puntos"></div>
-  <input type="text" data-f="texto" placeholder="Texto de la pregunta" value="${esc(q.texto || '')}">
-  <div class="opts">${ops.map((o, k) => `<div><input type="radio" name="c${i}" data-f="correcta" value="${k}" ${q.correcta === k ? 'checked' : ''} title="Marcar como correcta">${sm ? `<input type="text" data-oi="${k}" data-f="opt" value="${esc(o)}" placeholder="Opción ${String.fromCharCode(65 + k)}">` : `<span style="font-size:.9rem">${o}</span>`}</div>`).join('')}</div>
-  <small style="color:var(--mut);font-size:.76rem">Marca el círculo de la respuesta correcta.</small></div>`;
+  const type = q.tipo || 'sm', meta = q.metadata || {}, autoChoice = ['sm','vf'].includes(type);
+  const ops = type === 'vf' ? ['Verdadero','Falso'] : (q.opciones || ['','','','']);
+  let detail = '';
+  if (type === 'sm' || type === 'vf') detail = `<div class="opts">${ops.map((o,k)=>`<div><input type="radio" name="c${i}" data-f="correcta" value="${k}" ${q.correcta===k?'checked':''}><input type="text" data-oi="${k}" data-f="opt" value="${esc(o)}" placeholder="Opción ${k+1}" ${type==='vf'?'disabled':''}></div>`).join('')}</div><small>Selecciona la respuesta correcta.</small>`;
+  else if (type === 'emp') detail = `<div class="fld"><label>Respuesta(s) correcta(s), separadas por |</label><input data-f="accepted" value="${esc((meta.accepted||[]).join(' | '))}" placeholder="λόγος | logos"></div>`;
+  else if (type === 'rel') detail = `<div class="fld"><label>Pares correctos (una línea por par: elemento izquierdo | correspondencia)</label><textarea data-f="pairs" rows="5">${esc((meta.pairs||[]).map(p=>p.left+' | '+p.right).join('\n'))}</textarea></div>`;
+  else detail = `<div class="fld"><label>Orientación / criterios para el profesor</label><textarea data-f="rubric" rows="3">${esc(meta.rubric||'')}</textarea><small>La respuesta del estudiante será evaluada manualmente.</small></div>`;
+  return `<div class="qcard" data-qi="${i}"><div class="qh"><b>Pregunta ${i+1}</b><span class="grow"></span>${i>0?'<button type="button" class="ibtn" data-act="qup"><i class="fas fa-chevron-up"></i></button>':''}${i<S.editQs.length-1?'<button type="button" class="ibtn" data-act="qdown"><i class="fas fa-chevron-down"></i></button>':''}<button type="button" class="ibtn" data-act="qdel"><i class="fas fa-trash"></i></button></div>
+  <div style="display:flex;gap:.6rem;flex-wrap:wrap"><select data-f="tipo" style="max-width:260px"><option value="sm" ${type==='sm'?'selected':''}>Selección múltiple</option><option value="vf" ${type==='vf'?'selected':''}>Verdadero / Falso</option><option value="emp" ${type==='emp'?'selected':''}>Completar (automática)</option><option value="rel" ${type==='rel'?'selected':''}>Relacionar (automática)</option><option value="comprension" ${type==='comprension'?'selected':''}>Comprensión (profesor)</option><option value="red" ${type==='red'?'selected':''}>Desarrollo (profesor)</option></select><input type="number" data-f="puntos" min="0.5" max="100" step="0.5" style="max-width:120px" value="${q.puntos||2}" title="Puntos"></div>
+  <textarea data-f="texto" rows="2" placeholder="Enunciado de la pregunta">${esc(q.texto||'')}</textarea>${detail}</div>`;
 }
 function renderQs() { const el = $('#qlist'); if (el) el.innerHTML = S.editQs.map(qcardHtml).join(''); }
 VIEW.resultados = id => {
@@ -814,11 +825,22 @@ VIEW.resultados = id => {
   });
   S.matriculados.forEach(m => { if (!map[m.usuario]) map[m.usuario] = { nombre: m.nombre, n: 0, mejor: null, total: null, ultimo: null }; });
   const filas = Object.entries(map).sort((a, b) => a[1].nombre.localeCompare(b[1].nombre));
-  return `<div class="ph"><h2>Resultados · ${esc(x.titulo)}</h2><p>${S.resIntentos.length} intentos registrados por ${filas.length} estudiantes.</p></div>
+  const pendientes = S.resIntentos.filter(i => i.estadoRevision === 'pending');
+  return `<div class="ph"><h2>Resultados · ${esc(x.titulo)}</h2><p>${S.resIntentos.length} intentos registrados por ${filas.length} estudiantes · ${pendientes.length} pendientes de revisión.</p></div>
   <div class="rowtools"><a class="btn sec sm" href="#/examenes"><i class="fas fa-arrow-left"></i> Exámenes</a><button class="btn sm" data-act="csvres" data-id="${x.id}"><i class="fas fa-file-csv"></i> Exportar CSV</button></div>
+  ${pendientes.length ? `<div class="card" style="margin-bottom:1rem"><h3>Respuestas pendientes de revisión</h3>${pendientes.map(i=>`<div class="mrow"><div class="grow"><b>${esc(i.nombre)}</b><small>${fmtDT(i.fecha)} · ${i.puntaje}/${i.total} puntos automáticos</small></div><a class="btn sm" href="#/revision/${i.id}">Revisar respuestas</a></div>`).join('')}</div>` : ''}
   <div class="card tw"><table><thead><tr><th>Estudiante</th><th>Grupo</th><th>Intentos</th><th>Mejor nota</th><th>Último intento</th></tr></thead><tbody>
   ${filas.map(([u, o]) => { const m = S.matriculados.find(m2 => m2.usuario === u); return `<tr><td><b>${esc(o.nombre)}</b></td><td>${esc(m?.grupo || '')}</td><td>${o.n || '—'}</td><td>${o.mejor != null ? `${o.mejor}/${o.total}` : '—'}</td><td>${o.ultimo ? fmtDT(o.ultimo) : '—'}</td></tr>`; }).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--mut)">Sin matriculados.</td></tr>'}
   </tbody></table></div>`;
+};
+VIEW.revision = () => {
+  const d = S.reviewAttempt; if (!d?.intento) return '<div class="notice">Intento no encontrado.</div>';
+  const a = d.intento;
+  return `<div class="ph"><h2>Revisión del examen</h2><p>${esc(a.nombre)} · ${fmtDT(a.fecha)}</p></div>
+  <form id="reviewform"><div class="card"><h3>Calificación automática: ${a.puntaje}/${a.total}</h3>
+  ${d.preguntas.filter(q=>['comprension','red'].includes(q.tipo)).map(q=>{const ans=a.respuestas.find(x=>x.preguntaId===q.id);return `<section class="q"><h4>${esc(q.texto)} <span class="pts">· máximo ${q.puntos}</span></h4><div class="notice" style="white-space:pre-wrap">${esc(ans?.respuesta||'Sin respuesta')}</div>${q.metadata?.rubric?`<p><b>Criterios:</b> ${esc(q.metadata.rubric)}</p>`:''}<label>Puntos otorgados</label><input type="number" name="score_${q.id}" min="0" max="${q.puntos}" step="0.5" value="0" required></section>`}).join('')}
+  <div class="fld"><label>Observaciones para el estudiante</label><textarea id="reviewcomment" rows="4"></textarea></div>
+  <button class="btn" type="submit">Guardar calificación final</button> <a class="btn sec" href="#/resultados/${a.examenId}">Volver a resultados</a></div></form>`;
 };
 VIEW.gestionAnuncios = lista => `<div class="ph"><h2>Anuncios</h2><p>Publica avisos para los estudiantes de ${esc(asig()?.nombre || 'la asignatura')}.</p></div>
 <div class="card" style="margin-bottom:1.2rem"><form id="af2"><input type="hidden" id="aid">
@@ -1009,11 +1031,14 @@ BIND['examen-editar'] = () => {
     if (el.dataset.f === 'texto') q.texto = el.value;
     if (el.dataset.f === 'puntos') q.puntos = +el.value || 1;
     if (el.dataset.f === 'opt') { q.opciones = q.opciones || ['', '', '', '']; q.opciones[+el.dataset.oi] = el.value; }
+    if (el.dataset.f === 'accepted') { q.metadata = q.metadata || {}; q.metadata.accepted = el.value.split('|').map(x => x.trim()).filter(Boolean); }
+    if (el.dataset.f === 'pairs') { q.metadata = q.metadata || {}; q.metadata.pairs = el.value.split('\\n').map(line => line.split('|').map(x => x.trim())).filter(x => x.length >= 2 && x[0] && x[1]).map(x => ({left:x[0],right:x[1]})); q.metadata.leftItems = q.metadata.pairs.map(x=>x.left); q.metadata.rightOptions = q.metadata.pairs.map(x=>x.right); }
+    if (el.dataset.f === 'rubric') { q.metadata = q.metadata || {}; q.metadata.rubric = el.value; }
   });
   $('#view').addEventListener('change', e => {
     const el = e.target, card = el.closest('.qcard'); if (!card) return;
     const i = +card.dataset.qi, q = S.editQs[i]; if (!q) return;
-    if (el.dataset.f === 'tipo') { q.tipo = el.value; if (el.value === 'vf') { q.opciones = ['Verdadero', 'Falso']; q.correcta = 0; } else q.opciones = ['', '', '', '']; renderQs(); }
+    if (el.dataset.f === 'tipo') { q.tipo = el.value; q.metadata = {}; q.opciones = el.value === 'vf' ? ['Verdadero','Falso'] : (el.value === 'sm' ? ['','','',''] : []); q.correcta = 0; renderQs(); }
     if (el.dataset.f === 'correcta') q.correcta = +el.value;
   });
   f.onsubmit = async e => {
@@ -1038,7 +1063,11 @@ BIND.base = () => {
   q && (q.oninput = filt); g && (g.onchange = filt);
 };
 BIND.estudiantes = () => { /* acciones por delegación global */ };
-BIND.resultados = () => { /* idem */ };
+BIND.resultados = () => { /* idem */ };\nBIND.revision = () => {
+  const f=$('#reviewform'); if(!f)return;
+  f.onsubmit=async e=>{e.preventDefault();const a=S.reviewAttempt.intento;const calificaciones=S.reviewAttempt.preguntas.filter(q=>['comprension','red'].includes(q.tipo)).map(q=>({preguntaId:q.id,puntos:Number(f.querySelector('[name="score_'+q.id+'"]').value)}));try{await API.call('revisarIntento',{intentoId:a.id,calificaciones,comentario:$('#reviewcomment').value});toast('Calificación final guardada.');nav('resultados/'+a.examenId);}catch(ex){toast(ex.message);}};
+};
+
 BIND.resumen = () => { /* idem */ };
 
 /* ---------- arranque ---------- */
