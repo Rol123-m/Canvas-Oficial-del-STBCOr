@@ -207,7 +207,7 @@ async function route() {
     if (esStaff() && !S.asigId && !['asignaturas', 'base', 'direccion'].includes(r)) return nav('asignaturas');
     if (['panel', 'modulos', 'modulo', 'examenes', 'examen', 'examen-editar', 'resultados', 'anuncios', 'foro', 'progreso', 'resumen', 'estudiantes', 'ajustes'].includes(r)) await loadAsigData();
     if (r === 'mis') S.anunciosTodas = await Promise.all(S.asigs.map(async asg => ({ asig, anuncios: await API.call('getAnuncios', { asigId: asg.id }) })));
-    if (r === 'foro') S.chat = await API.call('getChat', { asigId: S.asigId, sesion: sesionForo() });
+    if (r === 'foro') S.chat = await API.call('getForo', { asigId: S.asigId, threadId: a || '' });
     if (esEst() && ['panel', 'examenes', 'progreso', 'modulos'].includes(r)) S.misNotas = await API.call('getMisNotas', { usuario: S.sesion.usuario, clave: S.sesion.clave, asigId: S.asigId });
     if (r === 'resultados') S.resIntentos = await API.call('getIntentos', { auth: authCod(), examenId: a });
     if (r === 'progreso' && esStaff()) S.intentosAsig = await API.call('getIntentosAsig', { auth: authCod(), asigId: S.asigId });
@@ -394,16 +394,28 @@ VIEW.progreso = () => {
   <div class="student-progress-mobile">${rows || '<div class="empty"><i class="fas fa-book-open"></i>Aún no hay módulos ni quizzes disponibles.</div>'}</div>`;
 };
 
-/* ---------- foro de dudas (en vivo) ---------- */
+/* ---------- foro por conversaciones ---------- */
 const esForo = () => (location.hash.slice(2).split('/')[0] || '') === 'foro';
 function detenerForo() { if (S.chatTimer) { clearInterval(S.chatTimer); S.chatTimer = null; } }
+function foroListaHtml() {
+  const items = S.chat?.conversaciones || [];
+  return items.map(h => `<article class="card forum-thread">
+    <div class="forum-thread-head"><div><span class="tag ${h.estado === 'closed' ? 'closed' : 'open'}">${h.estado === 'closed' ? 'Finalizada' : 'Activa'}</span>
+    <h3>${esc(h.titulo)}</h3><small>${esc(h.autor)} · ${fmtDT(h.fecha)}</small></div>
+    <span class="tag">${h.respuestas} respuesta${h.respuestas === 1 ? '' : 's'}</span></div>
+    <p class="forum-last">${esc(h.ultimoTexto || 'Sin respuestas todavía')}</p>
+    <div class="forum-actions"><a class="btn sec sm" href="#/foro/${encodeURIComponent(h.id)}">Abrir conversación</a>
+    ${(esStaff() || h.autorUsuario === S.sesion.usuario) ? `<button class="btn danger sm" data-act="threaddel" data-id="${esc(h.id)}"><i class="fas fa-trash"></i> Eliminar</button>` : ''}</div>
+  </article>`).join('') || '<div class="empty"><i class="fas fa-comments"></i>Aún no hay conversaciones. Inicia la primera.</div>';
+}
 function pintarChat() {
   const caja = $('#chatlist'); if (!caja) return;
-  caja.innerHTML = (S.chat.mensajes || []).map(m => {
-    const mio = S.sesion.usuario ? m.usuario === S.sesion.usuario : m.rol === 'direccion';
-    const del = esStaff() || m.usuario === S.sesion.usuario;
-    return `<div class="fmsg ${mio ? 'mio' : ''}"><div class="fmh"><b>${esc(m.nombre)}</b>${m.rol !== 'estudiante' ? `<span class="badge dir">${m.rol === 'profesor' ? 'Profesor' : 'Dirección'}</span>` : ''}<small>${fmtDT(m.fecha)}</small>${del ? `<button class="ibtn xs" data-act="chatdel" data-id="${esc(m.id)}" title="Eliminar mensaje"><i class="fas fa-trash"></i></button>` : ''}</div><p>${esc(m.texto)}</p></div>`;
-  }).join('') || '<div class="empty" style="padding:1.6rem"><i class="fas fa-comments"></i>Aún no hay mensajes en este foro.</div>';
+  const posts = S.chat?.mensajes || [];
+  caja.innerHTML = posts.map(m => {
+    const mio = m.usuario === S.sesion.usuario;
+    const del = esStaff() || mio;
+    return `<div class="fmsg ${mio ? 'mio' : ''}"><div class="fmh"><b>${esc(m.nombre)}</b>${m.rol !== 'estudiante' ? `<span class="badge dir">${m.rol === 'profesor' ? 'Profesor' : 'Dirección'}</span>` : ''}<small>${fmtDT(m.fecha)}</small>${del ? `<button class="ibtn xs" data-act="postdel" data-id="${esc(m.id)}" title="Eliminar respuesta"><i class="fas fa-trash"></i></button>` : ''}</div><p>${esc(m.texto)}</p></div>`;
+  }).join('') || '<div class="empty" style="padding:1.6rem"><i class="fas fa-comments"></i>Esta conversación aún no tiene respuestas.</div>';
   caja.scrollTop = caja.scrollHeight;
 }
 function iniciarForo() {
@@ -411,24 +423,36 @@ function iniciarForo() {
   S.chatTimer = setInterval(async () => {
     if (!esForo() || document.hidden || !S.chat) return;
     try {
-      const ultimo = S.chat.mensajes.length ? S.chat.mensajes[S.chat.mensajes.length - 1].fecha : '';
-      const d = await API.call('getChat', { asigId: S.asigId, sesion: sesionForo(), desde: ultimo });
-      if (d.mensajes.length) { S.chat.mensajes.push(...d.mensajes); pintarChat(); }
-      if (d.abierto !== S.chat.abierto) { S.chat.abierto = d.abierto; route(); }
-    } catch { /* sin respuesta: reintenta en el próximo ciclo */ }
-  }, (C.foro && C.foro.intervaloMs) || 4000);
+      const threadId = location.hash.slice(2).split('/')[1] || '';
+      const d = await API.call('getForo', { asigId: S.asigId, threadId });
+      S.chat = d;
+      const list = $('#forolist'); if (list) list.innerHTML = foroListaHtml();
+      pintarChat();
+      const status = $('#threadstatus');
+      if (status && d.actual) status.innerHTML = d.actual.estado === 'closed' ? '<span class="tag closed">Conversación finalizada</span>' : '<span class="tag open">Conversación activa</span>';
+      const form = $('#postform');
+      if (form && (!d.actual || d.actual.estado !== 'open' || (!esStaff() && !d.abierto))) form.remove();
+    } catch { /* reintenta en el próximo ciclo */ }
+  }, (C.foro && C.foro.intervaloMs) || 5000);
 }
-VIEW.foro = () => {
-  const a = asig(), abierto = !!S.chat.abierto;
-  const puede = esStaff() || abierto;
-  return `<div class="ph"><h2>Foro de dudas</h2><p><span class="tag ${abierto ? 'open' : 'closed'}"><i class="fas ${abierto ? 'fa-lock-open' : 'fa-lock'}"></i> ${abierto ? 'Abierto' : 'Cerrado'}</span> · ${esc(a?.nombre || '')} · se actualiza en vivo</p>
-  ${esStaff() ? `<button class="btn ${abierto ? 'warn' : 'ok'} sm" data-act="chattoggle"><i class="fas ${abierto ? 'fa-lock' : 'fa-lock-open'}"></i> ${abierto ? 'Cerrar el foro' : 'Abrir el foro'}</button>` : ''}</div>
-  ${esEst() && !abierto ? '<div class="notice"><i class="fas fa-lock"></i> El foro está cerrado. Tu profesor lo abrirá cuando corresponda y aquí podrán aclararse las dudas.</div>' : ''}
-  <div class="fwrap"><div class="fmsgbox" id="chatlist"></div>
-  ${puede ? `<form id="cf" class="finput"><div class="in"><input id="ct" maxlength="1000" placeholder="Escribe tu duda o comentario…" autocomplete="off"><button class="btn" type="submit" title="Enviar"><i class="fas fa-paper-plane"></i></button></div></form>` : ''}</div>`;
-};
-
-/* ---------- acciones del estudiante ---------- */
+VIEW.foro = id => {
+  const abierto = !!S.chat?.abierto, actual = S.chat?.actual;
+  const selected = !!id && !!actual;
+  const puedeCrear = esStaff() || abierto;
+  return `<div class="ph"><h2>Foro de conversaciones</h2><p>${esc(asig()?.nombre || '')} · cada tema conserva su propio historial.</p>
+  <div class="forum-top"><span class="tag ${abierto ? 'open' : 'closed'}">${abierto ? 'Foro abierto' : 'Foro cerrado para estudiantes'}</span>
+  ${esStaff() ? `<button class="btn ${abierto ? 'warn' : 'ok'} sm" data-act="chattoggle">${abierto ? 'Cerrar nuevas participaciones' : 'Permitir nuevas participaciones'}</button>` : ''}</div></div>
+  ${selected ? `<section class="card forum-detail"><div class="forum-detail-head"><button class="btn sec sm" data-act="threadback"><i class="fas fa-arrow-left"></i> Todas las conversaciones</button><span id="threadstatus"><span class="tag ${actual.estado === 'closed' ? 'closed' : 'open'}">${actual.estado === 'closed' ? 'Conversación finalizada' : 'Conversación activa'}</span></span></div>
+  <h3>${esc(actual.titulo)}</h3><p class="muted">Iniciada por ${esc(actual.autor)} · ${fmtDT(actual.fecha)}</p>
+  <div class="fmsgbox" id="chatlist"></div>
+  ${actual.estado === 'open' && (esStaff() || abierto) ? `<form id="postform" class="finput"><div class="in"><input id="ct" maxlength="4000" required placeholder="Escribe una respuesta…" autocomplete="off"><button class="btn" type="submit"><i class="fas fa-paper-plane"></i></button></div></form>` : '<p class="notice">Esta conversación está finalizada o el foro no admite nuevas respuestas.</p>'}
+  <div class="forum-actions">
+  ${esStaff() && actual.estado === 'open' ? '<button class="btn warn sm" data-act="threadclose" data-id="' + esc(actual.id) + '"><i class="fas fa-check"></i> Finalizar conversación</button>' : ''}
+  ${(esStaff() || actual.autorUsuario === S.sesion.usuario) ? '<button class="btn danger sm" data-act="threaddel" data-id="' + esc(actual.id) + '"><i class="fas fa-trash"></i> Eliminar conversación</button>' : ''}
+  </div></section>` : `
+  ${puedeCrear ? `<section class="card forum-new"><h3><i class="fas fa-plus-circle"></i> Iniciar una conversación</h3><form id="threadform"><div class="fld"><label for="threadtitle">Título o tema</label><div class="in"><input id="threadtitle" maxlength="120" required placeholder="Ej. Duda sobre los casos gramaticales"></div></div><div class="fld"><label for="threadtext">Mensaje inicial</label><div class="in"><textarea id="threadtext" rows="4" maxlength="4000" required placeholder="Explica tu pregunta o plantea el tema…"></textarea></div></div><button class="btn" type="submit"><i class="fas fa-paper-plane"></i> Publicar conversación</button></form></section>` : '<div class="notice"><i class="fas fa-lock"></i> El profesor ha cerrado temporalmente la creación de conversaciones y respuestas.</div>'}
+  <div class="ph"><h3>Conversaciones anteriores y activas</h3></div><div id="forolist" class="grid gA">${foroListaHtml()}</div>`}`;
+};/* ---------- acciones del estudiante ---------- */
 const BIND = {};
 BIND.modulo = id => {
   const b = $('[data-act="mcomp"]'); if (!b) return;
@@ -455,17 +479,30 @@ BIND.examen = id => {
     } catch (ex2) { toast(ex2.message); btn.disabled = false; }
   };
 };
-BIND.foro = () => {
+BIND.foro = id => {
   pintarChat(); iniciarForo();
-  const f = $('#cf'); if (!f) return;
-  f.onsubmit = async e => {
+  const nf = $('#threadform');
+  if (nf) nf.onsubmit = async e => {
     e.preventDefault();
-    const inp = $('#ct'), t = inp.value.trim(); if (!t) return;
-    inp.value = ''; inp.focus();
+    const titulo = $('#threadtitle').value.trim(), texto = $('#threadtext').value.trim();
+    if (!titulo || !texto) return;
+    const btn = nf.querySelector('button[type=submit]'); btn.disabled = true;
     try {
-      const r = await API.call('enviarChat', { asigId: S.asigId, texto: t, sesion: sesionForo(), auth: authCod() });
-      S.chat.mensajes.push(r.mensaje); pintarChat();
-    } catch (ex) { toast(ex.message); inp.value = t; }
+      const r = await API.call('crearConversacion', { asigId: S.asigId, titulo, texto });
+      toast('Conversación publicada.');
+      S.chat.actual = r.actual; S.chat.mensajes = r.mensajes || [];
+      nav('foro/' + encodeURIComponent(r.actual.id));
+    } catch (ex) { toast(ex.message); btn.disabled = false; }
+  };
+  const pf = $('#postform');
+  if (pf) pf.onsubmit = async e => {
+    e.preventDefault();
+    const inp = $('#ct'), texto = inp.value.trim(); if (!texto) return;
+    const btn = pf.querySelector('button[type=submit]'); btn.disabled = true;
+    try {
+      const r = await API.call('responderConversacion', { asigId: S.asigId, threadId: id, texto });
+      S.chat.mensajes.push(r.mensaje); pintarChat(); inp.value = ''; inp.focus(); btn.disabled = false;
+    } catch (ex) { toast(ex.message); btn.disabled = false; }
   };
 };
 
@@ -932,8 +969,11 @@ document.addEventListener('click', async e => {
     if (a === 'profnew') return dlgProfesorNuevo();
     if (a === 'profreset') { const pr = S.profesores.find(x => x.usuario === t.dataset.user); if (!confirm('¿Generar una nueva contraseña para ' + (pr?.nombre || 'este profesor') + '?')) return; const r = await API.call('resetClaveProfesor', { auth: authCod(), usuario: t.dataset.user }); dlgCredenciales(r.credenciales); return route(); }
     if (a === 'profdel') { if (!confirm('¿Eliminar esta cuenta de profesor? Sus asignaturas quedarán sin profesor asignado.')) return; await API.call('deleteProfesor', { auth: authCod(), usuario: t.dataset.user }); toast('Profesor eliminado.'); return route(); }
-    if (a === 'chattoggle') { const r = await API.call('setChatAbierto', { auth: authCod(), asigId: S.asigId, abierto: !S.chat.abierto }); S.chat.abierto = r.abierto; toast(r.abierto ? 'Foro abierto: los estudiantes ya pueden escribir.' : 'Foro cerrado para los estudiantes.'); return route(); }
-    if (a === 'chatdel') { if (!confirm('¿Eliminar este mensaje?')) return; await API.call('eliminarMensaje', { auth: authCod(), sesion: sesionForo(), id }); return route(); }
+    if (a === 'chattoggle') { const r = await API.call('setChatAbierto', { auth: authCod(), asigId: S.asigId, abierto: !S.chat.abierto }); S.chat.abierto = r.abierto; toast(r.abierto ? 'Se permiten nuevas participaciones.' : 'Se cerraron las nuevas participaciones.'); return route(); }
+    if (a === 'threadback') return nav('foro');
+    if (a === 'threadclose') { if (!confirm('¿Finalizar esta conversación? Se conservará en el historial.')) return; await API.call('cerrarConversacion', { asigId: S.asigId, threadId: id }); toast('Conversación finalizada.'); return route(); }
+    if (a === 'threaddel') { if (!confirm('¿Eliminar esta conversación y todas sus respuestas? Esta acción no se puede deshacer.')) return; await API.call('eliminarConversacion', { asigId: S.asigId, threadId: id }); toast('Conversación eliminada.'); return nav('foro'); }
+    if (a === 'postdel') { if (!confirm('¿Eliminar esta respuesta?')) return; await API.call('eliminarRespuesta', { asigId: S.asigId, postId: id }); toast('Respuesta eliminada.'); return route(); }
     if (a === 'navforo') return nav('foro');
   } catch (ex) { toast(ex.message); }
 });
