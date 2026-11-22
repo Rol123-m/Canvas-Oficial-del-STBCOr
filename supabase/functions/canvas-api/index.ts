@@ -466,7 +466,7 @@ async function handle(action: string, p: any, u: any) {
     case "getIntentos": {
       const ex = await one("exams", q => q.eq("id", p.examenId)); if (!ex) fail("Examen no encontrado.");
       await subjectAccess(u, ex.subject_id);
-      return (await rows("exam_attempts", q => q.eq("exam_id", p.examenId).order("attempted_at", { ascending: false }))).map(x => ({ id: x.id, examenId: x.exam_id, usuario: x.student_username, nombre: x.student_name, fecha: x.attempted_at, puntaje: x.score, total: x.total, estadoRevision: x.review_status || "graded", notaFinal: x.reviewed_score, comentario: x.feedback }));
+      return (await rows("exam_attempts", q => q.eq("exam_id", p.examenId).order("attempted_at", { ascending: false }))).map(x => ({ id: x.id, examenId: x.exam_id, usuario: x.student_username, nombre: x.student_name, fecha: x.attempted_at, puntaje: x.review_status === "graded" && x.reviewed_score !== null ? x.reviewed_score : x.score, puntajeAutomatico: x.score, total: x.total, estadoRevision: x.review_status || "graded", notaFinal: x.reviewed_score, comentario: x.feedback }));
     }
     case "getIntentoDetalle": {
       const attempt = await one("exam_attempts", q => q.eq("id", p.intentoId)); if (!attempt) fail("Intento no encontrado.");
@@ -501,7 +501,7 @@ async function handle(action: string, p: any, u: any) {
       const exs = await rows("exams", q => q.eq("subject_id", p.asigId));
       if (!exs.length) return [];
       const ats = await rows("exam_attempts", q => q.in("exam_id", exs.map(x => x.id)).order("attempted_at", { ascending: false }));
-      return ats.map(x => ({ id: x.id, examenId: x.exam_id, usuario: x.student_username, nombre: x.student_name, fecha: x.attempted_at, puntaje: x.score, total: x.total }));
+      return ats.map(x => ({ id: x.id, examenId: x.exam_id, usuario: x.student_username, nombre: x.student_name, fecha: x.attempted_at, puntaje: x.review_status === "graded" && x.reviewed_score !== null ? x.reviewed_score : x.score, puntajeAutomatico: x.score, total: x.total, estadoRevision: x.review_status || "graded" }));
     }
     case "getProgreso": {
       if (u.role === "estudiante") {
