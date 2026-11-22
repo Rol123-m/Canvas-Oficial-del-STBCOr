@@ -222,6 +222,7 @@ async function route() {
     $$('.side a,.bnav a').forEach(x => x.classList.toggle('on', (x.dataset.r || '') === r || (x.dataset.r || '') === act));
     $('#view').innerHTML = VIEW[r] ? VIEW[r](a) : VIEW[esStaff() ? 'resumen' : 'inicio']();
     BIND[r] && BIND[r](a);
+    if (r === 'modulo') cargarRecursosHtml();
     window.scrollTo(0, 0);
   } catch (ex) { const v = $('#view'); if (v) v.innerHTML = `<div class="notice"><i class="fas fa-triangle-exclamation"></i> ${esc(ex.message)}</div>`; }
 }
@@ -244,13 +245,31 @@ const recursosHtml = c => { try {
   return \`<div class="grid gA">\${it.map(r => {
     const url = String(r.u || '');
     const safe = /^https?:\/\//i.test(url) ? url : '';
-    const kind = r.k || (/\.html?(?:$|[?#])/i.test(url) ? 'html' : /\.(?:png|jpe?g|webp|gif)(?:$|[?#])/i.test(url) ? 'image' : 'link');
+    const kind = r.k || (/\.html?\.txt(?:$|[?#])/i.test(url) ? 'html' : /\.(?:png|jpe?g|webp|gif)(?:$|[?#])/i.test(url) ? 'image' : 'link');
     const media = safe && kind === 'image' ? \`<a href="\${esc(safe)}" target="_blank" rel="noopener"><img class="res-img" src="\${esc(safe)}" alt="\${esc(r.t)}" loading="lazy"></a>\`
-      : safe && kind === 'html' ? \`<iframe class="res-html" src="\${esc(safe)}" title="\${esc(r.t)}" sandbox="allow-scripts" loading="lazy"></iframe>\` : '';
+      : safe && kind === 'html' ? \`<iframe class="res-html" data-html-src="\${esc(safe)}" title="\${esc(r.t)}" sandbox="allow-scripts" referrerpolicy="no-referrer" loading="lazy"></iframe>\` : '';
     const action = safe && kind === 'link' ? \`<a class="btn sec sm" href="\${esc(safe)}" target="_blank" rel="noopener">\${esc(r.b || 'Abrir')} <i class="fas fa-up-right-from-square"></i></a>\` : '';
     return \`<div class="card res"><i class="fas \${kind === 'image' ? 'fa-image' : kind === 'html' ? 'fa-code' : safe ? 'fa-up-right-from-square' : 'fa-hourglass'} big"></i><h3>\${esc(r.t)}</h3><p>\${esc(r.d || '')}</p>\${media}\${action}\${!safe ? '<span class="tag">Recurso sin URL válida</span>' : ''}</div>\`;
   }).join('')}</div>\`;
 } catch { return '<p>Sin datos.</p>'; } };
+
+async function cargarRecursosHtml() {
+  for (const frame of $$('#view iframe[data-html-src]')) {
+    const src = frame.dataset.htmlSrc;
+    try {
+      const response = await fetch(src, { credentials: 'omit', cache: 'no-store' });
+      if (!response.ok) throw new Error('No se pudo cargar el recurso HTML.');
+      const html = await response.text();
+      const base = new URL('.', src).href;
+      const baseTag = '<base href="' + base.replace(/"/g, '%22') + '">';
+      frame.srcdoc = /<head[^>]*>/i.test(html)
+        ? html.replace(/<head[^>]*>/i, head => head + baseTag)
+        : baseTag + html;
+    } catch {
+      frame.srcdoc = '<!doctype html><meta charset="utf-8"><p style="font:16px sans-serif;padding:1rem">No se pudo cargar este recurso. Comprueba la conexión.</p>';
+    }
+  }
+}
 
 /* ---------- vistas del estudiante ---------- */
 const VIEW = {};
@@ -456,7 +475,7 @@ function textToPesta(tipo, txt) {
   if (tipo === 'vocabulario') return JSON.stringify({ filas: txt.split('\n').map(l => l.trim()).filter(Boolean).map(l => l.split('|').map(x => x.trim())) });
   if (tipo === 'recursos') return JSON.stringify({ items: txt.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
     const p = l.split('|').map(x => x.trim()), u = p[2] || '';
-    const k = /\.html?(?:$|[?#])/i.test(u) ? 'html' : /\.(?:png|jpe?g|webp|gif)(?:$|[?#])/i.test(u) ? 'image' : 'link';
+    const k = /\.html?\.txt(?:$|[?#])/i.test(u) ? 'html' : /\.(?:png|jpe?g|webp|gif)(?:$|[?#])/i.test(u) ? 'image' : 'link';
     return { t: p[0] || '', d: p[1] || '', u, b: p[3] || 'Abrir', k };
   }) });
   return txt;
