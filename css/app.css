@@ -378,7 +378,7 @@ main{min-width:0}
 .blank-field{display:flex;flex-direction:column;gap:.3rem;min-width:min(100%,220px);flex:1}
 .blank-field span{font-size:.8rem;color:var(--mut)}
 .blank-field input{width:100%;box-sizing:border-box;padding:.65rem .75rem;border:1px solid var(--line);border-radius:8px;font:inherit}
-.blank-inline:focus,.blank-field input:focus,.matching-row select:focus{outline:2px solid var(--primary);outline-offset:1px}
+.blank-inline:focus,.blank-field input:focus,.matching-row select:focus{outline:2px solid var(--navy);outline-offset:1px}
 .matching-list{display:grid;gap:.65rem;margin:.8rem 0}
 .matching-row{display:grid;grid-template-columns:minmax(130px,1fr) minmax(180px,1.2fr);gap:.8rem;align-items:center;padding:.75rem;border:1px solid var(--line);border-radius:10px;background:var(--card)}
 .matching-row span{font-weight:600}
