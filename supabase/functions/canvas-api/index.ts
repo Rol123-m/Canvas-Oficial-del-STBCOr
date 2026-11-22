@@ -440,6 +440,8 @@ async function handle(action: string, p: any, u: any) {
       if (u.role !== "estudiante") fail("Solo un estudiante puede entregar este examen.");
       const ex = await one("exams", q => q.eq("id", p.examenId).eq("visible", true)); if (!ex) fail("Examen no encontrado.");
       await enrolled(u, ex.subject_id);
+      const priorAttempt = await one("exam_attempts", q => q.eq("exam_id", ex.id).eq("student_username", u.username));
+      if (priorAttempt) fail("Este examen permite una sola oportunidad y ya fue entregado.");
       const qs = await rows("questions", q => q.eq("exam_id", ex.id).order("sort_order"));
       const answers = Array.isArray(p.respuestas) ? p.respuestas : [];
       let score = 0; const total = qs.reduce((s, q) => s + Number(q.points || 0), 0);
