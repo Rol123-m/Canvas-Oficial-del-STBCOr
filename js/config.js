@@ -4,7 +4,7 @@
    No hace falta tocar app.js.
    ============================================================ */
 window.CONFIG = {
-  app: 'Plataforma del Seminario',
+  app: 'STBCOr Gestión de Aulas',
   school: 'Seminario Teológico Bautista de Cuba Oriental',
   course: '2026–2027',
   logo: 'assets/logo.png',
