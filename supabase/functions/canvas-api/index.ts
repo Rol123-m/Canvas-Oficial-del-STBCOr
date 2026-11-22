@@ -105,8 +105,10 @@ const mapSubject = (a: any) => ({ id: a.id, nombre: a.name, descripcion: a.descr
 const mapModule = (m: any) => ({ id: m.id, asignaturaId: m.subject_id, titulo: m.title, icono: m.icon, tipo: m.kind, contenido: m.content, orden: m.sort_order, visible: m.visible });
 const mapExam = (e: any) => ({ id: e.id, asignaturaId: e.subject_id, titulo: e.title, descripcion: e.description, visible: e.visible, creado: e.created_at });
 const mapQuestion = (q: any, reveal = false) => {
-  const x: any = { id: q.id, examenId: q.exam_id, tipo: q.kind, texto: q.prompt, opciones: q.options, metadata: q.metadata || {}, puntos: Number(q.points), orden: q.sort_order };
-  if (reveal) x.correcta = q.correct_answer;
+  const metadata: any = { ...(q.metadata || {}) };
+  if (!reveal) { delete metadata.accepted; delete metadata.correct_text; delete metadata.pairs; delete metadata.model_answer; }
+  const x: any = { id: q.id, examenId: q.exam_id, tipo: q.kind, texto: q.prompt, opciones: q.options, metadata, puntos: Number(q.points), orden: q.sort_order };
+  if (reveal) { x.correcta = q.correct_answer; x.metadata = q.metadata || {}; }
   return x;
 };
 const mapAnnouncement = (a: any) => ({ id: a.id, asignaturaId: a.subject_id, titulo: a.title, cuerpo: a.body, tag: a.tag, autor: a.author, fecha: a.published_at, pin: a.pinned });
