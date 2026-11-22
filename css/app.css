@@ -369,3 +369,18 @@ main{min-width:0}
 .answer-writing textarea:focus{border-color:#7aa5d8;box-shadow:0 0 0 3px #dbe8f6}
 .answer-writing small{display:block;margin-top:.5rem;color:var(--mut);line-height:1.45}
 .answer-submission{min-height:90px;padding:1rem;border:1px solid var(--line);border-radius:10px;background:#fff;line-height:1.6}
+
+
+/* Evaluaciones complejas: completar y emparejar */
+.fill-answer{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;margin:.65rem 0}
+.fill-answer small{flex-basis:100%;color:var(--mut);font-size:.82rem}
+.blank-inline{display:inline-block;max-width:190px;min-width:105px;margin:.2rem .25rem;padding:.45rem .6rem;border:1px solid var(--line);border-radius:8px;background:var(--card);font:inherit;font-weight:500}
+.blank-field{display:flex;flex-direction:column;gap:.3rem;min-width:min(100%,220px);flex:1}
+.blank-field span{font-size:.8rem;color:var(--mut)}
+.blank-field input{width:100%;box-sizing:border-box;padding:.65rem .75rem;border:1px solid var(--line);border-radius:8px;font:inherit}
+.blank-inline:focus,.blank-field input:focus,.matching-row select:focus{outline:2px solid var(--primary);outline-offset:1px}
+.matching-list{display:grid;gap:.65rem;margin:.8rem 0}
+.matching-row{display:grid;grid-template-columns:minmax(130px,1fr) minmax(180px,1.2fr);gap:.8rem;align-items:center;padding:.75rem;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.matching-row span{font-weight:600}
+.matching-row select{width:100%;min-width:0;padding:.65rem .75rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);font:inherit}
+@media(max-width:560px){.matching-row{grid-template-columns:1fr;gap:.45rem}.blank-inline{max-width:145px;min-width:90px}}
