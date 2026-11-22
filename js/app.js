@@ -243,8 +243,8 @@ const vocabHtml = c => { try { const f = (JSON.parse(c).filas || []); return `<d
 const leccionHtml = c => { try {
   const data = JSON.parse(c), pages = data.paginas || [];
   const cards = pages.map((p, i) => {
-    const url = String(p.src || '').replace(/^\\/+/, '');
-    const safe = /^contenido\\/leccion\\d+\\/[A-Za-z0-9_ .-]+\\.html$/i.test(url) || /^assets\\/[A-Za-z0-9_.-]+\\.pdf$/i.test(url);
+    const url = String(p.src || '').replace(/^\/+/, '');
+    const safe = /^contenido\/leccion\d+\/[A-Za-z0-9_ .-]+\.html$/i.test(url) || /^assets\/[A-Za-z0-9_.-]+\.pdf$/i.test(url);
     const href = safe ? 'https://rol123-m.github.io/Curso-de-Griego-del-STBCOr.-/' + url.split('/').map(encodeURIComponent).join('/') : '';
     return '<article class="card lesson-page"><span class="tag navy">Parte ' + (i + 1) + '</span><h3>' + esc(p.t || 'Material de estudio') + '</h3>' + (href ? '<a class="btn sec" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-up-right-from-square"></i> Abrir lección</a>' : '<span class="tag">Ruta no válida</span>') + '</article>';
   }).join('');
