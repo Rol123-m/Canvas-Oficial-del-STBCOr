@@ -1047,8 +1047,9 @@ document.addEventListener('click', async e => {
       if (!esTecnologia()) throw new Error('Solo Tecnología puede borrar el progreso de un estudiante.');
       const usuario = t.dataset.user;
       if (!confirm('¿Borrar TODO el progreso, intentos y calificaciones de ' + usuario + ' en esta asignatura? Se conservarán su cuenta y matrícula. Esta acción no se puede deshacer.')) return;
-      await API.call('resetStudentProgress', { asigId: S.asigId, usuario });
-      toast('Progreso e intentos del estudiante restablecidos.');
+      const result = await API.call('resetStudentProgress', { asigId: S.asigId, usuario });
+      const deleted = result.eliminados || {};
+      toast('Restablecido: ' + (deleted.progress || 0) + ' registros de progreso y ' + (deleted.attempts || 0) + ' intentos/calificaciones.');
       return reroute();
     }
     if (a === 'quitar') { if (!esDir()) throw new Error('Solo rectoría, decanato o secretaría pueden retirar estudiantes.'); if (confirm('¿Quitar a este estudiante de la asignatura?')) { await API.call('desmatricular', { auth: authCod(), asigId: S.asigId, usuario: t.dataset.user }); toast('Estudiante retirado de la asignatura.'); return reroute(); } return; }
