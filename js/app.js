@@ -185,7 +185,7 @@ function bnavLinks() {
 }
 
 /* ---------- router ---------- */
-const ROUTES = ['mis', 'panel', 'inicio', 'modulos', 'modulo', 'examenes', 'examen', 'examen-editar', 'resultados', 'revision', 'anuncios', 'foro', 'progreso', 'asignaturas', 'resumen', 'estudiantes', 'ajustes', 'direccion', 'base'];
+const ROUTES = ['mis', 'panel', 'inicio', 'modulos', 'modulo', 'examenes', 'examen', 'examen-editar', 'resultados', 'revision', 'anuncios', 'foro', 'progreso', 'asignaturas', 'resumen', 'estudiantes', 'ajustes', 'direccion', 'base', 'aprobaciones'];
 async function route() {
   if (!S.sesion) return boot();
   detenerForo();
@@ -196,7 +196,7 @@ async function route() {
   if (!ROUTES.includes(r) || r === 'mas') return nav(esStaff() ? 'resumen' : 'mis');
   const soloStaff = ['resumen', 'estudiantes', 'examen-editar', 'resultados', 'revision', 'ajustes', 'asignaturas'];
   if (soloStaff.includes(r) && !esStaff()) return nav('mis');
-  const soloDireccion = ['direccion', 'base'];
+  const soloDireccion = ['direccion', 'base', 'aprobaciones'];
   if (soloDireccion.includes(r) && !esDir()) return nav(esStaff() ? 'resumen' : 'mis');
   if (r === 'examen' && esStaff()) r = 'resultados';
   if (esEst() && !S.asigId && ['panel', 'modulos', 'modulo', 'examenes', 'examen', 'anuncios', 'foro', 'progreso'].includes(r)) {
