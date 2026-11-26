@@ -43,7 +43,8 @@ let S = {
 const rol = () => S.sesion?.rol;
 const esEst = () => rol() === 'estudiante';
 const esProf = () => rol() === 'profesor';
-const esDir = () => ['rector', 'decano', 'secretaria'].includes(rol());
+const esDir = () => ['rector', 'decano', 'secretaria'].includes(rol()) || !!S.sesion?.isTecnologia;
+const esTecnologia = () => !!S.sesion?.isTecnologia;
 const esStaff = () => esProf() || esDir();
 const labelRol = r => ({ estudiante: 'Estudiante', profesor: 'Profesor', rector: 'Rectoría', decano: 'Decanato', secretaria: 'Secretaría' }[r] || r);
 const asig = () => S.asigs.find(a => a.id === S.asigId);
@@ -126,7 +127,7 @@ function bindLogin() {
         S.sesion = { rol: 'estudiante', nombre: d.nombre, grupo: d.grupo, usuario: d.usuario };
       } else if (loginModo === 'prof') {
         const d = await API.call('loginProfesor', { u: $('#u').value.trim(), p: $('#p').value });
-        S.sesion = { rol: 'profesor', nombre: d.nombre, usuario: d.usuario };
+        S.sesion = { rol: d.rol || 'profesor', nombre: d.nombre, usuario: d.usuario, isTecnologia: !!d.isTecnologia };
       } else {
         const d = await API.call('loginStaff', { codigo: $('#c').value.trim() });
         S.sesion = { rol: d.rol, nombre: d.nombre, usuario: d.usuario || null };
@@ -159,7 +160,7 @@ async function boot() {
 const STAFF_NAV = [['resumen', 'fa-gauge-high', 'Resumen'], ['modulos', 'fa-layer-group', 'Módulos'], ['estudiantes', 'fa-user-graduate', 'Estudiantes'], ['examenes', 'fa-clipboard-check', 'Exámenes'], ['anuncios', 'fa-bullhorn', 'Anuncios'], ['foro', 'fa-comments', 'Foro'], ['progreso', 'fa-chart-line', 'Progreso'], ['ajustes', 'fa-gear', 'Ajustes']];
 function navItems() {
   if (esEst()) return [['mis', 'fa-graduation-cap', 'Mis asignaturas'], ['modulos', 'fa-layer-group', 'Módulos'], ['examenes', 'fa-clipboard-check', 'Exámenes'], ['anuncios', 'fa-bullhorn', 'Anuncios'], ['foro', 'fa-comments', 'Foro'], ['progreso', 'fa-chart-line', 'Mi progreso']];
-  return esDir() ? [['direccion', 'fa-sitemap', 'Dirección'], ['base', 'fa-users', 'Estudiantes (base)'], ...STAFF_NAV] : [['asignaturas', 'fa-graduation-cap', 'Mis asignaturas'], ...STAFF_NAV];
+  return esDir() ? [['direccion', 'fa-sitemap', 'Dirección'], ...(esTecnologia() ? [['aprobaciones', 'fa-shield-halved', 'Autorizaciones']] : []), ['base', 'fa-users', 'Estudiantes (base)'], ...STAFF_NAV] : [['asignaturas', 'fa-graduation-cap', 'Mis asignaturas'], ...STAFF_NAV];
 }
 const navLink = n => `<a href="#/${n[0]}" data-r="${n[0]}"><i class="fas ${n[1]}"></i>${n[2]}${n[0] === 'anuncios' && unseen() > 0 ? `<em class="bdg">${unseen()}</em>` : ''}</a>`;
 function shell() {
@@ -215,7 +216,7 @@ async function route() {
     if (r === 'examen') { S.resExamen = null; S.examenActual = await API.call('getExamen', { id: a }); }
     if (r === 'examen-editar' && a !== 'nuevo') { const ex = await API.call('getExamen', { id: a }); S.editExam = ex; S.editQs = ex.preguntas.map(q => ({ ...q, tipo: ['sm','vf','red'].includes(q.tipo) ? q.tipo : 'red', metadata: q.tipo === 'red' ? (q.metadata || {}) : {} })); }
     if (r === 'examen-editar' && a === 'nuevo') { S.editExam = { titulo: '', descripcion: '', visible: true }; S.editQs = []; }
-    if (r === 'direccion') { S.resumen = await API.call('getResumen', { auth: authCod() }); S.profesores = await API.call('getProfesores', { auth: authCod() }); }
+    if (r === 'direccion') { S.resumen = await API.call('getResumen', { auth: authCod() }); S.profesores = await API.call('getProfesores', { auth: authCod() }); if (esTecnologia()) S.deletionRequests = await API.call('getDeletionRequests', { auth: authCod() }); }
     if (r === 'base') S.estudiantes = await API.call('getEstudiantes', { auth: authCod() });
     if (r === 'anuncios') localStorage.setItem(KEYSEEN, JSON.stringify(S.anuncios.map(x => x.id)));
     shell();
@@ -910,6 +911,12 @@ ${esDir() ? `<div class="card" style="margin-bottom:1.1rem"><h3><i class="fas fa
 <button class="btn sec" data-act="asigprof" data-id="${esc(a?.id || '')}"><i class="fas fa-user-check"></i> Asignar o cambiar profesor</button></div>` : ''}
 ${esDir() ? `<div class="card"><h3 style="color:var(--flame)">Zona de riesgo</h3><p style="color:var(--mut);font-size:.88rem;margin-bottom:.8rem">Eliminar la asignatura borra también sus módulos, exámenes, notas, progreso y anuncios.</p>
 <button class="btn warn" data-act="asigdel"><i class="fas fa-trash"></i> Eliminar asignatura</button></div>` : ''}`; };
+VIEW.aprobaciones = () => {
+  if (!esTecnologia()) return '<div class="notice">Acceso restringido.</div>';
+  const pending = (S.deletionRequests || []).filter(x => x.status === 'pending');
+  return '<div class="ph"><h2>Autorización de eliminaciones</h2><p>Las asignaturas permanecen intactas hasta que apruebes una solicitud.</p></div><div class="stack">' +
+    (pending.map(x => '<article class="card"><h3>' + esc(x.subjectName) + '</h3><p>Solicitada por ' + esc(x.requestedBy) + ' · ' + fmtDT(x.createdAt) + '</p>' + (x.reason ? '<p>' + esc(x.reason) + '</p>' : '') + '<div class="rowtools"><button class="btn" data-act="approveDeletion" data-id="' + x.id + '">Autorizar eliminación</button><button class="btn sec" data-act="rejectDeletion" data-id="' + x.id + '">Rechazar</button></div></article>').join('') || '<div class="empty">No hay solicitudes pendientes.</div>') + '</div>';
+};
 VIEW.direccion = () => {
   const r = S.resumen || {};
   return `<div class="ph"><h2>Panel de dirección</h2><p>${labelRol(rol())} · acceso total: asignaturas, profesores, grupos y base de estudiantes.</p></div>
@@ -1009,8 +1016,9 @@ document.addEventListener('click', async e => {
     if (a === 'bedit') return dlgEstudiante(S.estudiantes.find(x => x.id === id));
     if (a === 'btoggle') { const s2 = S.estudiantes.find(x => x.id === id); await API.call('saveEstudiante', { auth: authCod(), est: { ...s2, estado: s2.estado === 'Activo' ? 'Inactivo' : 'Activo' } }); toast('Estado actualizado.'); return route(); }
     if (a === 'bdel') { if (confirm('¿Eliminar este estudiante de la base de datos?')) { await API.call('deleteEstudiante', { auth: authCod(), id }); toast('Estudiante eliminado.'); return route(); } return; }
+    if (a === 'approveDeletion' || a === 'rejectDeletion') { if (!confirm(a === 'approveDeletion' ? '¿Confirmas eliminar definitivamente esta asignatura y todo su contenido?' : '¿Confirmas rechazar la solicitud?')) return; await API.call('reviewDeletionRequest', { auth: authCod(), id, decision: a === 'approveDeletion' ? 'approve' : 'reject' }); toast(a === 'approveDeletion' ? 'Eliminación autorizada y ejecutada.' : 'Solicitud rechazada; la asignatura permanece.'); S.deletionRequests = await API.call('getDeletionRequests', { auth: authCod() }); await loadAsigs(); return route(); }
     if (a === 'asigprof') return dlgAsignarProfesor(id);
-    if (a === 'asigdel2') { if (confirm('¿ELIMINAR la asignatura completa con todo su contenido? Esta acción no se puede deshacer.')) { await API.call('deleteAsignatura', { auth: authCod(), id }); toast('Asignatura eliminada.'); await loadAsigs(); return route(); } return; }
+    if (a === 'asigdel2') { if (confirm(esTecnologia() ? '¿Eliminar definitivamente esta asignatura y todo su contenido?' : '¿Enviar a Tecnología una solicitud para eliminar esta asignatura? No se borrará hasta que sea autorizada.')) { const result = await API.call('deleteAsignatura', { auth: authCod(), id }); toast(result.requested ? 'Solicitud enviada a Tecnología para su autorización.' : 'Asignatura eliminada.'); if (!result.requested) await loadAsigs(); return route(); } return; }
     if (a === 'profnew') return dlgProfesorNuevo();
     if (a === 'profreset') { const pr = S.profesores.find(x => x.usuario === t.dataset.user); if (!confirm('¿Generar una nueva contraseña para ' + (pr?.nombre || 'este profesor') + '?')) return; const r = await API.call('resetClaveProfesor', { auth: authCod(), usuario: t.dataset.user }); dlgCredenciales(r.credenciales); return route(); }
     if (a === 'profdel') { if (!confirm('¿Eliminar esta cuenta de profesor? Sus asignaturas quedarán sin profesor asignado.')) return; await API.call('deleteProfesor', { auth: authCod(), usuario: t.dataset.user }); toast('Profesor eliminado.'); return route(); }
