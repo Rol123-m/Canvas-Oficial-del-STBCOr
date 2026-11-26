@@ -67,7 +67,7 @@ async function tokenHash(token: string) {
 async function makeSession(user: any) {
   const token = b64(crypto.getRandomValues(new Uint8Array(32))) + "." + crypto.randomUUID();
   await insert("canvas_sessions", { token_hash: await tokenHash(token), user_id: user.id, expires_at: new Date(Date.now() + 7 * 86400000).toISOString() });
-  return { token, nombre: user.full_name, usuario: user.username, grupo: user.group_name, rol: user.role, email: user.email || "" };
+  return { token, nombre: user.full_name, usuario: user.username, grupo: user.group_name, rol: user.role, email: user.email || "", isTecnologia: !!user.is_technology };
 }
 async function authenticate(req: Request) {
   const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
@@ -79,7 +79,8 @@ async function authenticate(req: Request) {
   if (!user || user.status !== "Activo") fail("La cuenta no está activa.");
   return user;
 }
-const isDir = (u: any) => ["rector", "decano", "secretaria"].includes(u.role);
+const isTechnology = (u: any) => !!u.is_technology;
+const isDir = (u: any) => ["rector", "decano", "secretaria"].includes(u.role) || isTechnology(u);
 const isStaff = (u: any) => isDir(u) || u.role === "profesor";
 function requireDir(u: any) { if (!isDir(u)) fail("Esta acción requiere permisos de dirección."); }
 function requireStaff(u: any) { if (!isStaff(u)) fail("No tienes permisos para esta acción."); }
@@ -279,7 +280,7 @@ async function handle(action: string, p: any, u: any) {
         if (!es.length) return [];
         return (await rows("subjects", q => q.in("id", es.map(x => x.subject_id)))).map(mapSubject);
       }
-      if (u.role === "profesor") return (await rows("subjects", q => q.or("professor_username.eq." + u.username + ",professor2_username.eq." + u.username))).map(mapSubject);
+      if (u.role === "profesor" && !isTechnology(u)) return (await rows("subjects", q => q.or("professor_username.eq." + u.username + ",professor2_username.eq." + u.username))).map(mapSubject);
       requireDir(u);
       return (await rows("subjects")).map(mapSubject);
     }
@@ -332,7 +333,35 @@ async function handle(action: string, p: any, u: any) {
       return { ok: true, credenciales: credentials };
     }
     case "deleteAsignatura": {
-      requireDir(u); await remove("subjects", p.id); return { ok: true };
+      requireDir(u);
+      const target = await subject(clean(p.id));
+      if (!isTechnology(u)) {
+        const pending = await one("subject_deletion_requests", q => q.eq("subject_id", target.id).eq("status", "pending"));
+        if (pending) fail("Ya existe una solicitud pendiente para esta asignatura.");
+        const request = await insert("subject_deletion_requests", { subject_id: target.id, subject_name: target.name, requested_by: u.id, requested_by_username: u.username, requested_by_name: u.full_name, reason: clean(p.reason).slice(0, 1000) });
+        return { ok: true, requested: true, requestId: request.id };
+      }
+      await remove("subjects", target.id);
+      return { ok: true, deleted: true };
+    }
+    case "getDeletionRequests": {
+      if (!isTechnology(u)) fail("Solo Tecnología puede revisar estas solicitudes.");
+      return (await rows("subject_deletion_requests", q => q.order("created_at", { ascending: false }))).map(x => ({ id:x.id, subjectId:x.subject_id, subjectName:x.subject_name, requestedBy:x.requested_by_name, requestedByUsername:x.requested_by_username, reason:x.reason, status:x.status, createdAt:x.created_at, reviewedAt:x.reviewed_at }));
+    }
+    case "reviewDeletionRequest": {
+      if (!isTechnology(u)) fail("Solo Tecnología puede autorizar eliminaciones.");
+      const req = await one("subject_deletion_requests", q => q.eq("id", clean(p.id)));
+      if (!req || req.status !== "pending") fail("La solicitud ya fue atendida o no existe.");
+      if (p.decision === "approve") {
+        const target = await one("subjects", q => q.eq("id", req.subject_id));
+        if (!target) fail("La asignatura ya no existe.");
+        await remove("subjects", target.id);
+        await patch("subject_deletion_requests", req.id, { status:"approved", reviewed_by:u.id, reviewed_by_username:u.username, reviewed_at:now() });
+        return { ok:true, status:"approved" };
+      }
+      if (p.decision !== "reject") fail("Decisión no válida.");
+      await patch("subject_deletion_requests", req.id, { status:"rejected", reviewed_by:u.id, reviewed_by_username:u.username, reviewed_at:now() });
+      return { ok:true, status:"rejected" };
     }
     case "getMatriculados": {
       await subjectAccess(u, p.asigId);
