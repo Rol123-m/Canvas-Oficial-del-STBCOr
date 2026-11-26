@@ -96,7 +96,7 @@ let loginModo = 'est';
 function loginView() {
   const demo = API.demo;
   const campos = loginModo === 'dir'
-    ? `<div class="fld"><label for="c">Clave de dirección</label><div class="in"><input id="c" type="password" required autocapitalize="none" placeholder="rector-… · decano-… · secretaria-…"></div></div>`
+    ? `<div class="fld"><label for="c">Clave de dirección</label><div class="in"><input id="c" type="password" required autocapitalize="none" placeholder="rector-… · decano-… · secretaria-… · tecnologia-…"></div></div>`
     : `<div class="fld"><label for="u">Usuario</label><div class="in"><input id="u" name="username" required autocapitalize="none" autocomplete="username"></div></div>
        <div class="fld"><label for="p">Contraseña</label><div class="in"><input id="p" name="password" type="password" required autocomplete="current-password"><button type="button" id="eye" aria-label="Mostrar contraseña"><i class="fas fa-eye"></i></button></div></div>`;
   return `<div class="login"><section class="hero"><img src="${C.logo}" alt="Logo del Seminario"><span class="pill">CURSO ${esc(C.course)}</span>
@@ -130,7 +130,7 @@ function bindLogin() {
         S.sesion = { rol: d.rol || 'profesor', nombre: d.nombre, usuario: d.usuario, isTecnologia: !!d.isTecnologia };
       } else {
         const d = await API.call('loginStaff', { codigo: $('#c').value.trim() });
-        S.sesion = { rol: d.rol, nombre: d.nombre, usuario: d.usuario || null };
+        S.sesion = { rol: d.rol, nombre: d.nombre, usuario: d.usuario || null, isTecnologia: !!d.isTecnologia };
       }
       localStorage.setItem(KEYS, JSON.stringify(S.sesion));
       S.asigId = null; await loadAsigs();
