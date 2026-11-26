@@ -850,7 +850,7 @@ VIEW['examen-editar'] = () => {
   <div class="fld"><label>Título del examen</label><div class="in"><input id="et" required value="${esc(e.titulo || '')}"></div></div>
   <div class="fld"><label>Descripción</label><div class="in"><input id="ed" value="${esc(e.descripcion || '')}"></div></div>
   <div class="g2" style="gap:.8rem;margin:.8rem 0">
-    <div class="fld"><label for="etime">Tiempo límite (minutos)</label><div class="in"><input id="etime" type="number" min="1" max="600" step="1" placeholder="Vacío = sin límite" value="${e.tiempoLimiteMinutos ?? ''}"></div><small>Deja el campo vacío para no establecer límite.</small></div>
+    <div class="fld"><label for="etime">Tiempo límite (minutos)</label><div class="in"><input id="etime" type="number" min="1" max="1440" step="1" placeholder="Vacío = sin límite" value="${e.tiempoLimiteMinutos ?? ''}"></div><small>Deja el campo vacío para no establecer límite.</small></div>
     <div class="fld"><label>Intentos</label><label style="display:flex;gap:.5rem;align-items:center;font-size:.9rem;padding:.65rem 0"><input type="checkbox" id="eretake" ${e.permitirReintento === true ? 'checked' : ''}> Permitir realizar nuevos intentos</label><small>Desactivado por defecto: una sola entrega por estudiante.</small></div>
   </div>
   <label style="display:flex;gap:.5rem;align-items:center;font-size:.9rem"><input type="checkbox" id="ev" ${e.visible !== false ? 'checked' : ''}> Visible para los estudiantes</label></div>
