@@ -93,6 +93,7 @@ const sesionForo = () => sesionPublica();
 
 /* ---------- login ---------- */
 let loginModo = 'est';
+let approvalsPoll = null;
 function loginView() {
   const demo = API.demo;
   const campos = loginModo === 'dir'
@@ -153,6 +154,20 @@ async function boot() {
   try { await loadAsigs(); }
   catch (ex) { $('#app').innerHTML = `<div class="notice"><i class="fas fa-triangle-exclamation"></i> ${esc(ex.message)}</div>`; return; }
   shell();
+  if (esTecnologia() && !approvalsPoll) {
+    approvalsPoll = setInterval(async () => {
+      try {
+        S.deletionRequests = await API.call('getDeletionRequests', { auth: authCod() });
+        const count = S.deletionRequests.filter(x => x.status === 'pending').length;
+        document.querySelectorAll('[data-r="aprobaciones"]').forEach(link => {
+          let badge = link.querySelector('[data-approval-badge]');
+          if (count && !badge) { badge = document.createElement('em'); badge.className = 'bdg'; badge.dataset.approvalBadge = '1'; link.append(badge); }
+          if (badge) { badge.textContent = count ? String(count) : ''; badge.hidden = !count; }
+        });
+        if (location.hash === '#/aprobaciones') route();
+      } catch (_) {}
+    }, 30000);
+  }
   route();
 }
 
@@ -171,16 +186,16 @@ function shell() {
   $('#app').innerHTML = `<header class="top"><a class="brand" href="#/${staffSide ? 'resumen' : 'mis'}"><img src="${C.logo}" alt=""><span><b>${esc(C.app)}</b><small>${esc(C.school)}</small></span></a><span class="sp"></span>${sel}
     <div class="who"><span>${esc(s.nombre)}<small>${labelRol(s.rol)}${esEst() ? ' · ' + esc(s.grupo || '') : ''}</small></span><div class="av">${esc(inicial(s.nombre))}</div></div>
     <button class="icn" id="out" title="Salir" aria-label="Cerrar sesión"><i class="fas fa-right-from-bracket"></i></button></header>
-  <div class="layout"><aside class="side">${staffSide ? `<a href="#/asignaturas" data-r="asignaturas"><i class="fas fa-graduation-cap"></i>${esDir() ? 'Todas las asignaturas' : 'Mis asignaturas'}</a><h5>Asignatura</h5>${S.asigId ? STAFF_NAV.map(navLink).join('') : '<div class="mini">Selecciona o crea una asignatura para gestionarla.</div>'}<span class="grow"></span>` : `${navItems().map(navLink).join('')}<h5>Módulos</h5>${modulos.map(m => `<a href="#/modulo/${m.id}" data-r="modulo/${m.id}"><i class="fas ${esc(m.icono || 'fa-book')}"></i>${esc(m.titulo)}</a>`).join('')}<span class="grow"></span>`}
+  <div class="layout"><aside class="side">${staffSide ? `<a href="#/asignaturas" data-r="asignaturas"><i class="fas fa-graduation-cap"></i>${esDir() ? 'Todas las asignaturas' : 'Mis asignaturas'}</a>${esDir() ? `<h5>Administración</h5>${navLink(['direccion','fa-sitemap','Panel de control'])}${esTecnologia() ? navLink(['aprobaciones','fa-shield-halved','Autorizaciones']) : ''}${navLink(['base','fa-users','Estudiantes (base)'])}` : ''}<h5>Asignatura</h5>${S.asigId ? STAFF_NAV.map(navLink).join('') : '<div class="mini">Selecciona o crea una asignatura para gestionarla.</div>'}<span class="grow"></span>` : `${navItems().map(navLink).join('')}<h5>Módulos</h5>${modulos.map(m => `<a href="#/modulo/${m.id}" data-r="modulo/${m.id}"><i class="fas ${esc(m.icono || 'fa-book')}"></i>${esc(m.titulo)}</a>`).join('')}<span class="grow"></span>`}
   <div class="mini">© ${esc(C.course)} · ${esc(C.school)}</div></aside><main id="view"></main></div>
   <nav class="bnav">${bnavLinks()}</nav>`;
-  $('#out').onclick = () => { API.logout(); localStorage.removeItem(KEYS); S.sesion = null; S.asigId = null; location.hash = ''; boot(); };
+  $('#out').onclick = () => { API.logout(); if (approvalsPoll) { clearInterval(approvalsPoll); approvalsPoll = null; } localStorage.removeItem(KEYS); S.sesion = null; S.asigId = null; location.hash = ''; boot(); };
   $('#asel') && ($('#asel').onchange = async e => { S.asigId = e.target.value; await loadAsigData(); shell(); route(); });
 }
 function bnavLinks() {
   const L = esEst()
     ? [['mis', 'fa-graduation-cap', 'Asignaturas'], ['modulos', 'fa-layer-group', 'Módulos'], ['examenes', 'fa-clipboard-check', 'Quizzes'], ['progreso', 'fa-chart-line', 'Progreso']]
-    : [['resumen', 'fa-gauge-high', 'Resumen'], ['modulos', 'fa-layer-group', 'Módulos'], ['estudiantes', 'fa-user-graduate', 'Alumnos'], ['progreso', 'fa-chart-line', 'Progreso']];
+    : [['resumen', 'fa-gauge-high', 'Resumen'], ...(esTecnologia() ? [['aprobaciones', 'fa-shield-halved', 'Autorizaciones']] : []), ['modulos', 'fa-layer-group', 'Módulos'], ['estudiantes', 'fa-user-graduate', 'Alumnos'], ['progreso', 'fa-chart-line', 'Progreso']];
   return L.map(navLink).join('') + `<a href="#/mas" data-act="mas"><i class="fas fa-ellipsis"></i>Más</a>`;
 }
 
@@ -206,6 +221,7 @@ async function route() {
   }
   try {
     if (esStaff() && !S.asigId && !['asignaturas', 'base', 'direccion', 'aprobaciones'].includes(r)) return nav('asignaturas');
+    if (esTecnologia()) S.deletionRequests = await API.call('getDeletionRequests', { auth: authCod() });
     if (['panel', 'modulos', 'modulo', 'examenes', 'examen', 'examen-editar', 'resultados', 'anuncios', 'foro', 'progreso', 'resumen', 'estudiantes', 'ajustes'].includes(r)) await loadAsigData();
     if (r === 'mis') S.anunciosTodas = await Promise.all(S.asigs.map(async asg => ({ asig, anuncios: await API.call('getAnuncios', { asigId: asg.id }) })));
     if (r === 'foro') S.chat = await API.call('getForo', { asigId: S.asigId, threadId: a || '' });
@@ -217,7 +233,6 @@ async function route() {
     if (r === 'examen-editar' && a !== 'nuevo') { const ex = await API.call('getExamen', { id: a }); S.editExam = ex; S.editQs = ex.preguntas.map(q => ({ ...q, tipo: ['sm','vf','red'].includes(q.tipo) ? q.tipo : 'red', metadata: q.tipo === 'red' ? (q.metadata || {}) : {} })); }
     if (r === 'examen-editar' && a === 'nuevo') { S.editExam = { titulo: '', descripcion: '', visible: true }; S.editQs = []; }
     if (r === 'direccion') { S.resumen = await API.call('getResumen', { auth: authCod() }); S.profesores = await API.call('getProfesores', { auth: authCod() }); }
-    if ((r === 'direccion' || r === 'aprobaciones') && esTecnologia()) S.deletionRequests = await API.call('getDeletionRequests', { auth: authCod() });
     if (r === 'base') S.estudiantes = await API.call('getEstudiantes', { auth: authCod() });
     if (r === 'anuncios') localStorage.setItem(KEYSEEN, JSON.stringify(S.anuncios.map(x => x.id)));
     shell();
