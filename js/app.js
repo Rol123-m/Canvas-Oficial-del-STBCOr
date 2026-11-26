@@ -177,7 +177,7 @@ function navItems() {
   if (esEst()) return [['mis', 'fa-graduation-cap', 'Mis asignaturas'], ['modulos', 'fa-layer-group', 'Módulos'], ['examenes', 'fa-clipboard-check', 'Exámenes'], ['anuncios', 'fa-bullhorn', 'Anuncios'], ['foro', 'fa-comments', 'Foro'], ['progreso', 'fa-chart-line', 'Mi progreso']];
   return esDir() ? [['direccion', 'fa-sitemap', 'Dirección'], ...(esTecnologia() ? [['aprobaciones', 'fa-shield-halved', 'Autorizaciones']] : []), ['base', 'fa-users', 'Estudiantes (base)'], ...STAFF_NAV] : [['asignaturas', 'fa-graduation-cap', 'Mis asignaturas'], ...STAFF_NAV];
 }
-const navLink = n => `<a href="#/${n[0]}" data-r="${n[0]}"><i class="fas ${n[1]}"></i>${n[2]}${n[0] === 'anuncios' && unseen() > 0 ? `<em class="bdg">${unseen()}</em>` : n[0] === 'aprobaciones' && (S.deletionRequests || []).filter(x => x.status === 'pending').length > 0 ? `<em class="bdg">${(S.deletionRequests || []).filter(x => x.status === 'pending').length}</em>` : ''}</a>`;
+const navLink = n => `<a href="#/${n[0]}" data-r="${n[0]}"><i class="fas ${n[1]}"></i>${n[2]}${n[0] === 'anuncios' && unseen() > 0 ? `<em class="bdg">${unseen()}</em>` : n[0] === 'aprobaciones' && (S.deletionRequests || []).filter(x => x.status === 'pending').length > 0 ? `<em class="bdg" data-approval-badge="1">${(S.deletionRequests || []).filter(x => x.status === 'pending').length}</em>` : ''}</a>`;
 function shell() {
   const s = S.sesion;
   const sel = S.asigs.length ? `<select class="sel" id="asel" title="Cambiar asignatura">${S.asigs.map(a => `<option value="${a.id}"${a.id === S.asigId ? ' selected' : ''}>${esc(a.nombre)}</option>`).join('')}</select>` : '';
