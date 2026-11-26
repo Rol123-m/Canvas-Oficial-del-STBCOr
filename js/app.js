@@ -353,7 +353,8 @@ VIEW.modulo = id => {
   const cuerpo = m.tipo === 'leccion' ? leccionHtml(m.contenido) : m.tipo === 'vocabulario' ? vocabHtml(m.contenido) : m.tipo === 'recursos' ? recursosHtml(m.contenido) : m.tipo === 'enlace'
     ? `<div class="card" style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap"><div class="grow"><h3 style="margin:0">Recurso externo</h3><p style="color:var(--mut);font-size:.9rem">${esc(m.contenido || '')}</p></div><a class="btn" href="${esc(m.contenido || '#')}" target="_blank" rel="noopener"><i class="fas fa-up-right-from-square"></i> Abrir</a></div>`
     : `<div class="doc">${docHtml(m.contenido)}</div>`;
-  return `<div class="ph"><h2>${esc(m.titulo)}</h2><p><span class="tag navy"><i class="fas ${esc(m.icono || 'fa-book')}"></i> ${TIPOS[m.tipo]?.[0] || m.tipo}</span></p></div>
+  return `${esStaff() ? `<div class="notice" style="margin-bottom:1rem"><i class="fas fa-eye"></i> Vista previa del estudiante: estás leyendo este módulo en su formato de publicación, sin registrar progreso.</div><p style="margin:0 0 .8rem"><a class="btn sec sm" href="#/modulos"><i class="fas fa-arrow-left"></i> Volver a módulos y edición</a></p>` : ''}
+  <div class="ph"><h2>${esc(m.titulo)}</h2><p><span class="tag navy"><i class="fas ${esc(m.icono || 'fa-book')}"></i> ${TIPOS[m.tipo]?.[0] || m.tipo}</span></p></div>
   <div class="card" style="margin-bottom:1.1rem">${cuerpo}</div>
   ${m.tipo !== 'enlace' && esEst() ? `<button class="btn ${done ? 'sec' : 'ok'}" data-act="mcomp" ${done ? 'disabled' : ''}><i class="fas fa-check"></i> ${done ? 'Módulo completado' : 'Marcar como completado'}</button>` : ''}`;
 };
@@ -803,12 +804,13 @@ VIEW.resumen = () => {
   <div class="grid g2"><div class="card"><h3><i class="fas fa-chart-line"></i> Progreso medio del grupo</h3><p style="color:var(--mut);font-size:.88rem;margin-bottom:.7rem">Módulos completados y quizzes realizados.</p><div class="bar" style="height:12px"><i style="width:${pm}%"></i></div><p style="margin-top:.5rem"><b>${pm}%</b> de media · ${S.matriculados.length} estudiantes</p></div>
   <div class="card"><h3><i class="fas fa-clock-rotate-left"></i> Actividad reciente</h3><ul class="list">${S.progreso.slice(-6).reverse().map(g => `<li><i class="fas ${g.tipo === 'examen' ? 'fa-clipboard-check' : 'fa-circle-check'}"></i><div>${esc(g.nombre || g.usuario)}<small>${g.tipo === 'examen' ? 'Realizó un quiz' : 'Completó un módulo'} · ${fmtDT(g.fecha)}</small></div></li>`).join('') || '<li><i class="fas fa-circle-info"></i><div>Sin actividad aún</div></li>'}</ul></div></div>`;
 };
-VIEW.gestionModulos = () => `<div class="ph"><h2>Módulos y pestañas</h2><p>Crea, ordena y publica el contenido de ${esc(asig()?.nombre || 'la asignatura')}.</p></div>
+VIEW.gestionModulos = () => `<div class="ph"><h2>Módulos y pestañas</h2><p>Crea, ordena, publica y revisa el contenido de ${esc(asig()?.nombre || 'la asignatura')}.</p></div>
 <div class="rowtools"><button class="btn" data-act="npesta"><i class="fas fa-plus"></i> Nuevo módulo</button><span class="tag navy">${S.pestanas.length} módulos</span></div>
 ${S.pestanas.map((m, i) => `<div class="mrow"><span style="width:40px;height:40px;border-radius:10px;background:var(--navy-l);color:var(--navy);display:grid;place-items:center;flex:none"><i class="fas ${esc(m.icono || 'fa-book')}"></i></span>
 <div class="grow"><b>${esc(m.titulo)}</b><small>${TIPOS[m.tipo]?.[0] || m.tipo} · posición ${i + 1}</small></div>
 <span class="badge ${m.visible !== false ? '' : 'off'}">${m.visible !== false ? 'Visible' : 'Oculto'}</span>
-<span class="acts"><button class="ibtn" data-act="pmup" data-id="${m.id}" title="Subir"><i class="fas fa-chevron-up"></i></button>
+<span class="acts"><a class="btn sec sm" href="#/modulo/${encodeURIComponent(m.id)}" title="Ver como estudiante"><i class="fas fa-eye"></i> Vista previa</a>
+<button class="ibtn" data-act="pmup" data-id="${m.id}" title="Subir"><i class="fas fa-chevron-up"></i></button>
 <button class="ibtn" data-act="pmdown" data-id="${m.id}" title="Bajar"><i class="fas fa-chevron-down"></i></button>
 <button class="ibtn" data-act="pmvis" data-id="${m.id}" title="Mostrar u ocultar"><i class="fas ${m.visible !== false ? 'fa-eye' : 'fa-eye-slash'}"></i></button>
 <button class="ibtn" data-act="pmedit" data-id="${m.id}" title="Editar"><i class="fas fa-pen"></i></button>
