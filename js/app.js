@@ -162,7 +162,7 @@ function navItems() {
   if (esEst()) return [['mis', 'fa-graduation-cap', 'Mis asignaturas'], ['modulos', 'fa-layer-group', 'Módulos'], ['examenes', 'fa-clipboard-check', 'Exámenes'], ['anuncios', 'fa-bullhorn', 'Anuncios'], ['foro', 'fa-comments', 'Foro'], ['progreso', 'fa-chart-line', 'Mi progreso']];
   return esDir() ? [['direccion', 'fa-sitemap', 'Dirección'], ...(esTecnologia() ? [['aprobaciones', 'fa-shield-halved', 'Autorizaciones']] : []), ['base', 'fa-users', 'Estudiantes (base)'], ...STAFF_NAV] : [['asignaturas', 'fa-graduation-cap', 'Mis asignaturas'], ...STAFF_NAV];
 }
-const navLink = n => `<a href="#/${n[0]}" data-r="${n[0]}"><i class="fas ${n[1]}"></i>${n[2]}${n[0] === 'anuncios' && unseen() > 0 ? `<em class="bdg">${unseen()}</em>` : ''}</a>`;
+const navLink = n => `<a href="#/${n[0]}" data-r="${n[0]}"><i class="fas ${n[1]}"></i>${n[2]}${n[0] === 'anuncios' && unseen() > 0 ? `<em class="bdg">${unseen()}</em>` : n[0] === 'aprobaciones' && (S.deletionRequests || []).filter(x => x.status === 'pending').length > 0 ? `<em class="bdg">${(S.deletionRequests || []).filter(x => x.status === 'pending').length}</em>` : ''}</a>`;
 function shell() {
   const s = S.sesion;
   const sel = S.asigs.length ? `<select class="sel" id="asel" title="Cambiar asignatura">${S.asigs.map(a => `<option value="${a.id}"${a.id === S.asigId ? ' selected' : ''}>${esc(a.nombre)}</option>`).join('')}</select>` : '';
@@ -216,7 +216,8 @@ async function route() {
     if (r === 'examen') { S.resExamen = null; S.examenActual = await API.call('getExamen', { id: a }); }
     if (r === 'examen-editar' && a !== 'nuevo') { const ex = await API.call('getExamen', { id: a }); S.editExam = ex; S.editQs = ex.preguntas.map(q => ({ ...q, tipo: ['sm','vf','red'].includes(q.tipo) ? q.tipo : 'red', metadata: q.tipo === 'red' ? (q.metadata || {}) : {} })); }
     if (r === 'examen-editar' && a === 'nuevo') { S.editExam = { titulo: '', descripcion: '', visible: true }; S.editQs = []; }
-    if (r === 'direccion') { S.resumen = await API.call('getResumen', { auth: authCod() }); S.profesores = await API.call('getProfesores', { auth: authCod() }); if (esTecnologia()) S.deletionRequests = await API.call('getDeletionRequests', { auth: authCod() }); }
+    if (r === 'direccion') { S.resumen = await API.call('getResumen', { auth: authCod() }); S.profesores = await API.call('getProfesores', { auth: authCod() }); }
+    if ((r === 'direccion' || r === 'aprobaciones') && esTecnologia()) S.deletionRequests = await API.call('getDeletionRequests', { auth: authCod() });
     if (r === 'base') S.estudiantes = await API.call('getEstudiantes', { auth: authCod() });
     if (r === 'anuncios') localStorage.setItem(KEYSEEN, JSON.stringify(S.anuncios.map(x => x.id)));
     shell();
