@@ -180,10 +180,10 @@ async function handle(action: string, p: any, u: any) {
       const code = clean(p.codigo);
       const prefix = code.split("-")[0];
       const username = action === "loginStaff" ? prefix : clean(p.u).toLowerCase();
-      const roleFilter = action === "login" ? ["estudiante"] : action === "loginProfesor" ? ["profesor"] : ["rector", "decano", "secretaria"];
+      const roleFilter = action === "login" ? ["estudiante"] : action === "loginProfesor" ? ["profesor"] : ["rector", "decano", "secretaria", "tecnologia"];
       let candidates;
       if (action === "loginStaff") {
-        if (!["rector", "decano", "secretaria"].includes(prefix)) fail("Clave de acceso no válida.");
+        if (!["rector", "decano", "secretaria", "tecnologia"].includes(prefix)) fail("Clave de acceso no válida.");
         candidates = await rows("app_users", q => q.eq("role", prefix).eq("status", "Activo"));
       } else candidates = await rows("app_users", q => q.eq("username", username).in("role", roleFilter));
       const found = await (async () => { for (const x of candidates) if (await verifyPassword(clean(action === "loginStaff" ? p.codigo : p.p), x.password_hash)) return x; return null; })();
