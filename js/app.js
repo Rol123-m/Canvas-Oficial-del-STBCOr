@@ -94,6 +94,7 @@ const sesionForo = () => sesionPublica();
 /* ---------- login ---------- */
 let loginModo = 'est';
 let approvalsPoll = null;
+let examTimer = null;
 function loginView() {
   const demo = API.demo;
   const campos = loginModo === 'dir'
@@ -202,6 +203,7 @@ function bnavLinks() {
 /* ---------- router ---------- */
 const ROUTES = ['mis', 'panel', 'inicio', 'modulos', 'modulo', 'examenes', 'examen', 'examen-editar', 'resultados', 'revision', 'anuncios', 'foro', 'progreso', 'asignaturas', 'resumen', 'estudiantes', 'ajustes', 'direccion', 'base', 'aprobaciones'];
 async function route() {
+  if (examTimer) { clearInterval(examTimer); examTimer = null; }
   if (!S.sesion) return boot();
   detenerForo();
   const [r0, a] = (location.hash.slice(2) || (esStaff() ? 'resumen' : 'mis')).split('/');
@@ -360,15 +362,16 @@ VIEW.modulo = id => {
 };
 VIEW.examenes = () => {
   if (esStaff()) return VIEW.gestionExamenes();
-  return `<div class="ph"><h2>Exámenes</h2><p>Cuatro evaluaciones semanales. Cada examen permite una sola entrega; las preguntas objetivas se califican automáticamente y la redacción queda pendiente de revisión docente.</p></div>
+  return `<div class="ph"><h2>Exámenes</h2><p>Las condiciones de cada evaluación se muestran antes de comenzar. Los intentos y el tiempo se validan en el servidor.</p></div>
   <div class="grid gA">${S.examenes.filter(x => x.visible !== false).map(x => {
     const mis = S.misNotas.filter(n => n.examenId === x.id);
     const mejor = mis.length ? Math.max(...mis.map(n => n.puntaje)) : null;
     const tot = mis.length ? Math.max(...mis.map(n => n.total)) : null;
+    const puedeRepetir = !!x.permitirReintento;
     return `<article class="card exam"><div class="hd"><span class="nb">${esc(x.titulo)}</span><span class="tag ${mis.length ? 'done' : 'prog'}">${mis.some(n => n.estadoRevision === 'pending') ? 'Pendiente de revisión' : mejor != null ? `Nota: ${mejor}/${tot}` : 'Sin intento'}</span></div>
     <p style="color:var(--mut);font-size:.9rem">${esc(x.descripcion || '')}</p>
-    <div class="info"><span><i class="fas fa-circle-question"></i> ${x.nPreg || '—'} preguntas</span>${mis.length ? `<span><i class="fas fa-rotate"></i> ${mis.length} intento${mis.length > 1 ? 's' : ''}</span>` : ''}</div>
-    ${mis.length ? '<span class="tag done"><i class="fas fa-check"></i> Entregado</span>' : `<a class="btn" href="#/examen/${x.id}"><i class="fas fa-pen"></i> Realizar</a>`}</article>`;
+    <div class="info"><span><i class="fas fa-circle-question"></i> ${x.nPreg || '—'} preguntas</span>${x.tiempoLimiteMinutos ? `<span><i class="fas fa-clock"></i> ${x.tiempoLimiteMinutos} min</span>` : '<span><i class="fas fa-infinity"></i> Sin límite de tiempo</span>'}${mis.length ? `<span><i class="fas fa-rotate"></i> ${mis.length} intento${mis.length > 1 ? 's' : ''}</span>` : ''}</div>
+    ${mis.length && !puedeRepetir ? '<span class="tag done"><i class="fas fa-check"></i> Entregado · sin reintento</span>' : `<a class="btn" href="#/examen/${x.id}"><i class="fas fa-pen"></i> ${mis.length ? 'Realizar otro intento' : 'Realizar'}</a>`}</article>`;
   }).join('') || '<div class="empty"><i class="fas fa-clipboard-check"></i>Aún no hay exámenes disponibles.</div>'}</div>`;
 };
 VIEW.examen = id => {
@@ -382,9 +385,10 @@ VIEW.examen = id => {
     <div class="card"><h3>Resumen de respuestas</h3>${r.detalle.map((d, i) => `<div class="rv ${d.ok === null ? '' : d.ok ? 'ok' : 'bad'}"><div><b>${i + 1}. ${esc(d.texto)}</b><small>${d.ok === null ? 'Pendiente de revisión docente' : d.ok ? 'Correcta' : 'Incorrecta'} · ${d.obtenido}/${d.puntos} puntos</small></div></div>`).join('')}</div>`;
   }
   const previous = S.misNotas.find(n => n.examenId === id);
-  if (previous) return `<div class="ph"><h2>${esc(x.titulo)}</h2><p>Este examen ya fue entregado. Cada estudiante dispone de una sola oportunidad.</p></div>
+  if (previous && !x.permitirReintento) return `<div class="ph"><h2>${esc(x.titulo)}</h2><p>Este examen ya fue entregado y no admite otro intento.</p></div>
     <div class="card"><h3>${previous.estadoRevision === 'pending' ? 'Pendiente de revisión del profesor' : 'Calificación final'}</h3><p>${previous.estadoRevision === 'pending' ? 'La parte automática se ha calificado. La nota definitiva aparecerá cuando el profesor revise las respuestas de redacción.' : (previous.puntaje + ' / ' + previous.total + ' puntos')}</p><a class="btn sec" href="#/examenes">Volver a exámenes</a></div>`;
   return `<div class="ph"><h2>${esc(x.titulo)}</h2><p>${esc(x.descripcion || '')}</p></div>
+  ${x.tiempoLimiteMinutos ? `<div class="notice" id="examTimer" role="status"><i class="fas fa-clock"></i> Tiempo límite: ${x.tiempoLimiteMinutos} minutos. El tiempo comienza al abrir el examen.</div>` : '<div class="notice"><i class="fas fa-infinity"></i> Este examen no tiene límite de tiempo.</div>'}
   <form id="xf"><div class="card" style="margin-bottom:1.1rem">${x.preguntas.map((q, i) => {
     const meta = q.metadata || {};
     let field = '', promptHtml = esc(q.texto || '');
@@ -502,7 +506,22 @@ BIND.modulo = id => {
   };
 };
 BIND.examen = id => {
+  if (examTimer) { clearInterval(examTimer); examTimer = null; }
   const f = $('#xf'); if (!f) return;
+  const timerEl = $('#examTimer');
+  const deadline = S.examenActual?.sesionExamen?.vence ? new Date(S.examenActual.sesionExamen.vence).getTime() : null;
+  if (timerEl && deadline) {
+    const updateTimer = () => {
+      const left = Math.max(0, deadline - Date.now());
+      const mins = Math.floor(left / 60000), secs = Math.floor((left % 60000) / 1000);
+      timerEl.innerHTML = left > 0
+        ? '<i class="fas fa-clock"></i> Tiempo restante: ' + mins + ':' + String(secs).padStart(2, '0')
+        : '<i class="fas fa-hourglass-end"></i> El tiempo ha terminado. La entrega ya no está disponible.';
+      if (left <= 0) { const submit = f.querySelector('button[type=submit]'); if (submit) submit.disabled = true; clearInterval(examTimer); examTimer = null; }
+    };
+    updateTimer();
+    examTimer = setInterval(updateTimer, 1000);
+  }
   f.addEventListener('change', e => {
     const match = /^q(\d+)_(\d+)$/.exec(e.target?.name || '');
     if (!match) return;
@@ -830,6 +849,10 @@ VIEW['examen-editar'] = () => {
   <form id="ef"><div class="card" style="margin-bottom:1.1rem">
   <div class="fld"><label>Título del examen</label><div class="in"><input id="et" required value="${esc(e.titulo || '')}"></div></div>
   <div class="fld"><label>Descripción</label><div class="in"><input id="ed" value="${esc(e.descripcion || '')}"></div></div>
+  <div class="g2" style="gap:.8rem;margin:.8rem 0">
+    <div class="fld"><label for="etime">Tiempo límite (minutos)</label><div class="in"><input id="etime" type="number" min="1" max="600" step="1" placeholder="Vacío = sin límite" value="${e.tiempoLimiteMinutos ?? ''}"></div><small>Deja el campo vacío para no establecer límite.</small></div>
+    <div class="fld"><label>Intentos</label><label style="display:flex;gap:.5rem;align-items:center;font-size:.9rem;padding:.65rem 0"><input type="checkbox" id="eretake" ${e.permitirReintento === true ? 'checked' : ''}> Permitir realizar nuevos intentos</label><small>Desactivado por defecto: una sola entrega por estudiante.</small></div>
+  </div>
   <label style="display:flex;gap:.5rem;align-items:center;font-size:.9rem"><input type="checkbox" id="ev" ${e.visible !== false ? 'checked' : ''}> Visible para los estudiantes</label></div>
   <h3 style="margin-bottom:.7rem">Preguntas (${S.editQs.length})</h3><div id="qlist"></div>
   <div class="rowtools"><button class="btn sec" type="button" data-act="qadd"><i class="fas fa-plus"></i> Añadir pregunta</button>
@@ -917,7 +940,7 @@ VIEW.estudiantes = () => `<div class="ph"><h2>Estudiantes de la asignatura</h2><
 <button class="btn sec" data-act="matalum"><i class="fas fa-user-plus"></i> Añadir alumnos</button>
 ${esDir() ? '<a class="btn sec" href="#/base"><i class="fas fa-database"></i> Base general de estudiantes</a>' : ''}</div>
 <div class="card tw"><table><thead><tr><th>Estudiante</th><th>Grupo</th><th>Usuario</th><th>Estado</th><th></th></tr></thead><tbody>
-${[...S.matriculados].sort((a, b) => a.grupo.localeCompare(b.grupo) || a.nombre.localeCompare(b.nombre)).map(m => `<tr><td><b>${esc(m.nombre)}</b></td><td>${esc(m.grupo)}</td><td class="mono">${esc(m.usuario)}</td><td><span class="badge ${m.estado === 'Activo' ? '' : 'off'}">${esc(m.estado)}</span></td><td>${esDir() ? `<button class="btn sec sm" data-act="quitar" data-user="${esc(m.usuario)}"><i class="fas fa-user-minus"></i> Quitar</button>` : '<span class="tag">Solo consulta</span>'}</td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--mut);padding:1.4rem">Nadie matriculado aún. Usa «Añadir grupo completo».</td></tr>'}
+${[...S.matriculados].sort((a, b) => a.grupo.localeCompare(b.grupo) || a.nombre.localeCompare(b.nombre)).map(m => `<tr><td><b>${esc(m.nombre)}</b></td><td>${esc(m.grupo)}</td><td class="mono">${esc(m.usuario)}</td><td><span class="badge ${m.estado === 'Activo' ? '' : 'off'}">${esc(m.estado)}</span></td><td>${esTecnologia() ? `<button class="btn sec sm" data-act="reset-progress" data-user="${esc(m.usuario)}" title="Borrar progreso y calificaciones"><i class="fas fa-eraser"></i> Borrar progreso</button>` : esDir() ? `<button class="btn sec sm" data-act="quitar" data-user="${esc(m.usuario)}"><i class="fas fa-user-minus"></i> Quitar</button>` : '<span class="tag">Solo consulta</span>'}</td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--mut);padding:1.4rem">Nadie matriculado aún. Usa «Añadir grupo completo».</td></tr>'}
 </tbody></table></div>`;
 VIEW.ajustes = () => { const a = asig(); return `<div class="ph"><h2>Ajustes de la asignatura</h2><p>Personaliza el nombre, la descripción y el color.</p></div>
 <form id="ajf"><div class="card" style="margin-bottom:1.1rem">
@@ -1020,6 +1043,14 @@ document.addEventListener('click', async e => {
     }
     if (a === 'matgrupo') return dlgMatricularGrupo();
     if (a === 'matalum') return dlgMatricularAlumnos();
+    if (a === 'reset-progress') {
+      if (!esTecnologia()) throw new Error('Solo Tecnología puede borrar el progreso de un estudiante.');
+      const usuario = t.dataset.user;
+      if (!confirm('¿Borrar TODO el progreso, intentos y calificaciones de ' + usuario + ' en esta asignatura? Se conservarán su cuenta y matrícula. Esta acción no se puede deshacer.')) return;
+      await API.call('resetStudentProgress', { asigId: S.asigId, usuario });
+      toast('Progreso e intentos del estudiante restablecidos.');
+      return reroute();
+    }
     if (a === 'quitar') { if (!esDir()) throw new Error('Solo rectoría, decanato o secretaría pueden retirar estudiantes.'); if (confirm('¿Quitar a este estudiante de la asignatura?')) { await API.call('desmatricular', { auth: authCod(), asigId: S.asigId, usuario: t.dataset.user }); toast('Estudiante retirado de la asignatura.'); return reroute(); } return; }
     if (a === 'nanuncio') { nav('anuncios'); setTimeout(() => $('#at')?.focus(), 300); return; }
     if (a === 'aedit') { const an = S.anuncios.find(x => x.id === id); $('#aid').value = an.id; $('#at').value = an.titulo; $('#ag').value = an.tag || ''; $('#ab').value = an.cuerpo; $('#ap').checked = !!an.pin; $('#abtn').innerHTML = '<i class="fas fa-check"></i> Guardar cambios'; $('#acan').style.display = ''; $('#at').focus(); return; }
@@ -1080,7 +1111,7 @@ BIND['examen-editar'] = () => {
   f.onsubmit = async e => {
     e.preventDefault();
     try {
-      const r = await API.call('saveExamen', { auth: authCod(), examen: { id: S.editExam.id, asignaturaId: S.asigId, titulo: $('#et').value.trim(), descripcion: $('#ed').value.trim(), visible: $('#ev').checked, preguntas: S.editQs } });
+      const r = await API.call('saveExamen', { auth: authCod(), examen: { id: S.editExam.id, asignaturaId: S.asigId, titulo: $('#et').value.trim(), descripcion: $('#ed').value.trim(), visible: $('#ev').checked, permitirReintento: $('#eretake').checked, tiempoLimiteMinutos: $('#etime').value === '' ? null : Number($('#etime').value), preguntas: S.editQs } });
       toast('Examen guardado.'); await loadAsigData(); nav('examenes');
     } catch (ex) { toast(ex.message); }
   };
