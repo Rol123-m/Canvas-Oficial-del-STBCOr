@@ -703,6 +703,31 @@ async function dlgMatricularGrupo() {
     catch (ex) { $('#ger').textContent = ex.message; }
   };
 }
+async function dlgDesmatricularGrupo() {
+  if (!esDir()) throw new Error("Solo rectoría, decanato, secretaría o Tecnología pueden retirar grupos completos.");
+  const grupos = [...new Set(S.matriculados.map(m => m.grupo).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'es'));
+  if (!grupos.length) return toast("No hay grupos matriculados en esta asignatura.");
+  const counts = Object.fromEntries(grupos.map(g => [g, S.matriculados.filter(m => m.grupo === g).length]));
+  const d = dialog('Retirar un grupo completo', `<form id="rgf">
+    <div class="fld"><label for="rgg">Grupo matriculado</label><div class="in"><select id="rgg" required>${grupos.map(g => `<option value="${esc(g)}">${esc(g)} · ${counts[g]} estudiante(s)</option>`).join('')}</select></div></div>
+    <div class="notice" style="margin:.6rem 0"><i class="fas fa-info-circle"></i> Se retirarán de la matrícula todos los estudiantes del grupo elegido en esta asignatura. Sus cuentas y sus registros de progreso y calificaciones no se eliminarán.</div>
+    <div class="err" id="rger"></div>
+    <button class="btn warn" type="submit"><i class="fas fa-user-minus"></i> Retirar grupo seleccionado</button>
+  </form>`);
+  $('#rgf').onsubmit = async e => {
+    e.preventDefault();
+    const grupo = $('#rgg').value;
+    const cantidad = counts[grupo] || 0;
+    if (!confirm('¿Retirar a los ' + cantidad + ' estudiante(s) del grupo «' + grupo + '» de esta asignatura? Sus cuentas y calificaciones se conservarán. Esta acción no se puede deshacer.')) return;
+    try {
+      const r = await API.call('desmatricularGrupo', { auth: authCod(), asigId: S.asigId, grupo });
+      d.close();
+      toast((r.eliminados || 0) + ' estudiante(s) del grupo ' + grupo + ' retirados de la matrícula.');
+      await loadAsigData();
+      route();
+    } catch (ex) { $('#rger').textContent = ex.message; }
+  };
+}
 async function dlgMatricularAlumnos() {
   if (!S.estudiantes.length) S.estudiantes = await API.call('getCandidatosMatricula', { auth: authCod(), asigId: S.asigId });
   const ya = new Set(S.matriculados.map(m => m.usuario));
@@ -938,6 +963,7 @@ VIEW.matrizProgreso = () => {
 VIEW.estudiantes = () => `<div class="ph"><h2>Estudiantes de la asignatura</h2><p>${esc(asig()?.nombre || '')} · ${S.matriculados.length} matriculados</p></div>
 <div class="rowtools"><button class="btn" data-act="matgrupo"><i class="fas fa-users"></i> Añadir grupo completo</button>
 <button class="btn sec" data-act="matalum"><i class="fas fa-user-plus"></i> Añadir alumnos</button>
+${esDir() ? '<button class="btn warn" data-act="desmatgrupo"><i class="fas fa-user-minus"></i> Retirar grupo completo</button>' : ''}
 ${esDir() ? '<a class="btn sec" href="#/base"><i class="fas fa-database"></i> Base general de estudiantes</a>' : ''}</div>
 <div class="card tw"><table><thead><tr><th>Estudiante</th><th>Grupo</th><th>Usuario</th><th>Estado</th><th></th></tr></thead><tbody>
 ${[...S.matriculados].sort((a, b) => a.grupo.localeCompare(b.grupo) || a.nombre.localeCompare(b.nombre)).map(m => `<tr><td><b>${esc(m.nombre)}</b></td><td>${esc(m.grupo)}</td><td class="mono">${esc(m.usuario)}</td><td><span class="badge ${m.estado === 'Activo' ? '' : 'off'}">${esc(m.estado)}</span></td><td>${esTecnologia() ? `<button class="btn sec sm" data-act="reset-progress" data-user="${esc(m.usuario)}" title="Borrar progreso y calificaciones"><i class="fas fa-eraser"></i> Borrar progreso</button>` : esDir() ? `<button class="btn sec sm" data-act="quitar" data-user="${esc(m.usuario)}"><i class="fas fa-user-minus"></i> Quitar</button>` : '<span class="tag">Solo consulta</span>'}</td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--mut);padding:1.4rem">Nadie matriculado aún. Usa «Añadir grupo completo».</td></tr>'}
@@ -1043,6 +1069,7 @@ document.addEventListener('click', async e => {
     }
     if (a === 'matgrupo') return dlgMatricularGrupo();
     if (a === 'matalum') return dlgMatricularAlumnos();
+    if (a === 'desmatgrupo') return dlgDesmatricularGrupo();
     if (a === 'reset-progress') {
       if (!esTecnologia()) throw new Error('Solo Tecnología puede borrar el progreso de un estudiante.');
       const usuario = t.dataset.user;
