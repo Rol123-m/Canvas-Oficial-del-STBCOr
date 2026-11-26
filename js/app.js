@@ -205,7 +205,7 @@ async function route() {
     return;
   }
   try {
-    if (esStaff() && !S.asigId && !['asignaturas', 'base', 'direccion'].includes(r)) return nav('asignaturas');
+    if (esStaff() && !S.asigId && !['asignaturas', 'base', 'direccion', 'aprobaciones'].includes(r)) return nav('asignaturas');
     if (['panel', 'modulos', 'modulo', 'examenes', 'examen', 'examen-editar', 'resultados', 'anuncios', 'foro', 'progreso', 'resumen', 'estudiantes', 'ajustes'].includes(r)) await loadAsigData();
     if (r === 'mis') S.anunciosTodas = await Promise.all(S.asigs.map(async asg => ({ asig, anuncios: await API.call('getAnuncios', { asigId: asg.id }) })));
     if (r === 'foro') S.chat = await API.call('getForo', { asigId: S.asigId, threadId: a || '' });
