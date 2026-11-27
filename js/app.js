@@ -195,8 +195,8 @@ function shell() {
 }
 function bnavLinks() {
   const L = esEst()
-    ? [['mis', 'fa-graduation-cap', 'Asignaturas'], ['modulos', 'fa-layer-group', 'Módulos'], ['examenes', 'fa-clipboard-check', 'Quizzes'], ['progreso', 'fa-chart-line', 'Progreso']]
-    : [['resumen', 'fa-gauge-high', 'Resumen'], ...(esTecnologia() ? [['aprobaciones', 'fa-shield-halved', 'Autorizaciones']] : []), ['modulos', 'fa-layer-group', 'Módulos'], ['estudiantes', 'fa-user-graduate', 'Alumnos'], ['progreso', 'fa-chart-line', 'Progreso']];
+    ? [['mis', 'fa-graduation-cap', 'Asignaturas'], ['modulos', 'fa-layer-group', 'Módulos'], ['examenes', 'fa-clipboard-check', 'Exámenes'], ['progreso', 'fa-chart-line', 'Progreso']]
+    : [['resumen', 'fa-gauge-high', 'Resumen'], ['examenes', 'fa-clipboard-check', 'Exámenes'], ['modulos', 'fa-layer-group', 'Módulos'], ['estudiantes', 'fa-user-graduate', 'Alumnos']];
   return L.map(navLink).join('') + `<a href="#/mas" data-act="mas"><i class="fas fa-ellipsis"></i>Más</a>`;
 }
 
@@ -1041,7 +1041,10 @@ document.addEventListener('click', async e => {
   const a = t.dataset.act, id = t.dataset.id;
   const reroute = async () => { await loadAsigData(); route(); };
   try {
-    if (a === 'mas') { e.preventDefault(); return dialog('Más secciones', [esEst() ? ['mis', 'fa-graduation-cap', 'Mis asignaturas'] : ['resumen', 'fa-gauge-high', 'Resumen'], ['anuncios', 'fa-bullhorn', 'Anuncios'], ['foro', 'fa-comments', 'Foro de dudas'], esEst() ? ['progreso', 'fa-chart-line', 'Mi progreso'] : ['progreso', 'fa-chart-line', 'Progreso'], esDir() ? ['base', 'fa-database', 'Base de estudiantes'] : null, esStaff() ? ['asignaturas', 'fa-graduation-cap', 'Asignaturas'] : null].filter(Boolean).map(n => `<a class="opt" href="#/${n[0]}"><i class="fas ${n[1]}"></i><span><b>${n[2]}</b></span></a>`).join('')); }
+    if (a === 'mas') { e.preventDefault(); return dialog('Más secciones', (esEst()
+      ? [['anuncios','fa-bullhorn','Anuncios'],['foro','fa-comments','Foro de dudas']]
+      : [['anuncios','fa-bullhorn','Anuncios'],['foro','fa-comments','Foro de dudas'],['progreso','fa-chart-line','Progreso'],['ajustes','fa-gear','Ajustes'],...(esTecnologia() ? [['aprobaciones','fa-shield-halved','Autorizaciones']] : []),...(esDir() ? [['direccion','fa-sitemap','Dirección'],['base','fa-database','Base de estudiantes']] : []),['asignaturas','fa-graduation-cap','Asignaturas']])
+      .map(n => `<a class="opt" href="#/${n[0]}"><i class="fas ${n[1]}"></i><span><b>${n[2]}</b></span></a>`).join('')); }
     if (a === 'reintentar') { S.resExamen = null; return route(); }
     if (a === 'cancelex') return nav('examenes');
     if (a === 'newasig') return dlgAsignatura();
