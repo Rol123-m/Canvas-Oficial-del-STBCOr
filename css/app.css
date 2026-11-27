@@ -597,93 +597,99 @@ dialog{border:1px solid #e3e9f0;border-radius:18px;box-shadow:0 24px 70px rgba(9
 }
 
 
-/* =========================================================
-   MOBILE-FIRST FIX PACK · 2026-11
-   Evita recortes, desbordamientos y controles inaccesibles
-   ========================================================= */
-html{min-height:100%;overflow-x:hidden;scroll-padding-top:76px}
-body{min-width:0;width:100%;overflow-x:hidden;padding-bottom:env(safe-area-inset-bottom)}
+
+/* Ajustes móviles revisados: cabecera, avatar, navegación y contenido */
+html{overflow-x:clip;scroll-padding-top:72px}
+body{min-width:0;overflow-x:clip}
 #app,.layout,.layout>main,#view,main{min-width:0;max-width:100%}
-img,svg,video,iframe{max-width:100%}
-.card,.banner,.ann,.mod,.exam,.q,.qcard,.notice,.empty,.doc,.res,.asigcard{min-width:0;max-width:100%;overflow-wrap:anywhere}
-.card p,.ann p,.doc p,.notice,.empty{overflow-wrap:anywhere;word-break:normal}
-.banner{overflow:hidden}
-.banner>*{min-width:0;max-width:100%}
-.tw,.table-wrap,.fmsgbox{max-width:100%;-webkit-overflow-scrolling:touch}
-.tw{overflow-x:auto;overscroll-behavior-x:contain}
-button,a,.btn,input,select,textarea{touch-action:manipulation}
-dialog{max-height:calc(100dvh - 24px);max-height:calc(100vh - 24px);overflow:hidden}
-dialog[open]{display:flex;flex-direction:column}
-.dh{flex:none}
-.db{min-height:0;max-height:none;overflow-y:auto;overscroll-behavior:contain;padding-bottom:max(1.25rem,env(safe-area-inset-bottom))}
-.bnav{padding:5px 4px calc(5px + env(safe-area-inset-bottom));min-height:calc(60px + env(safe-area-inset-bottom));gap:2px}
-.bnav a{min-width:0;min-height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:10px;padding:.35rem .12rem}
-.bnav a i{margin:0;font-size:1.12rem}
-.bnav a em{position:absolute;margin-left:18px;margin-top:-26px}
-#toasts{bottom:calc(76px + env(safe-area-inset-bottom))}
-.pwa-fab{bottom:calc(78px + env(safe-area-inset-bottom))!important}
+.card,.ann,.mod,.exam,.notice,.empty,.doc,.res,.asigcard{min-width:0;overflow-wrap:anywhere}
+img,video,iframe{max-width:100%}
+.tw{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+dialog{width:min(560px,calc(100vw - 20px));max-width:calc(100vw - 20px);max-height:88dvh;max-height:88vh;overflow:hidden}
+.db{max-height:min(70dvh,70vh);overflow-y:auto;overscroll-behavior:contain;padding-bottom:max(1rem,env(safe-area-inset-bottom))}
 @media(max-width:860px){
-  html,body{width:100%;overflow-x:hidden}
-  .top{position:sticky;top:0;z-index:50;padding-top:env(safe-area-inset-top);height:calc(60px + env(safe-area-inset-top));min-height:60px}
-  .top .brand{flex:1;min-width:0}
-  .top .brand b{max-width:42vw}
-  .top .sp{display:none}
-  .top .who{flex:none}
-  .top .sel{min-width:0;max-width:34vw}
-  .layout{display:block;min-height:calc(100dvh - 60px)}
-  main{width:100%;padding:1rem .85rem calc(88px + env(safe-area-inset-bottom));margin:0}
+  .top{
+    height:auto;min-height:58px;display:grid;
+    grid-template-columns:minmax(0,1fr) auto auto auto;
+    align-items:center;gap:.35rem .45rem;
+    padding:.5rem .65rem;padding-top:calc(.5rem + env(safe-area-inset-top));
+  }
+  .top .brand{grid-column:1;grid-row:1;min-width:0;gap:.4rem}
+  .top .brand img{width:34px;height:34px}
+  .top .brand b{font-size:.78rem;max-width:34vw}
+  .top .brand small,.top .sp{display:none}
+  .top .sel{grid-column:2;grid-row:1;width:auto;min-width:0;max-width:27vw;padding:.4rem .35rem;font-size:.7rem}
+  .top .who{grid-column:3;grid-row:1;display:flex;align-items:center;justify-content:center;min-width:34px}
+  .top .who span{display:none}
+  .top .av{display:grid;visibility:visible;opacity:1;width:34px;height:34px;font-size:.82rem;flex:none}
+  .top .icn{grid-column:4;grid-row:1;width:34px;height:34px}
+  .layout{display:block;min-height:calc(100dvh - 58px)}
+  .side{display:none}
+  main{width:100%;max-width:none;margin:0;padding:1rem .85rem calc(6.5rem + env(safe-area-inset-bottom))}
   #view{width:100%;min-width:0}
-  .ph{min-width:0}
-  .banner{gap:.85rem;align-items:flex-start}
-  .banner .ring{align-self:center;margin:0}
-  .grid{min-width:0}
-  .g2,.g3,.g4,.gA{grid-template-columns:minmax(0,1fr)}
-  .tabs{max-width:100%;overflow-x:auto;flex-wrap:nowrap;padding:2px 1px 8px;scrollbar-width:thin}
+  .g2,.g3,.g4{grid-template-columns:minmax(0,1fr)}
+  .gA{grid-template-columns:minmax(0,1fr)}
+  .banner{flex-wrap:wrap;align-items:flex-start;overflow:visible}
+  .banner .grow{min-width:0;flex:1 1 100%}
+  .banner .ring{margin:0 0 0 auto;align-self:flex-end}
+  .bnav{display:grid;position:fixed;inset:auto 0 0;z-index:60;
+    grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;
+    padding:.35rem .25rem calc(.35rem + env(safe-area-inset-bottom));
+    background:#fff;border-top:1px solid var(--line);
+    box-shadow:0 -5px 22px rgba(13,39,66,.09)}
+  .bnav a{position:relative;display:flex;min-width:0;min-height:52px;
+    flex-direction:column;align-items:center;justify-content:center;
+    gap:.16rem;padding:.3rem .08rem;border-radius:10px;
+    font-size:.62rem;line-height:1.1;white-space:normal;
+    text-align:center;overflow-wrap:anywhere}
+  .bnav a i{display:block;font-size:1.08rem;margin:0}
+  .bnav a.on{background:var(--navy-l);color:var(--navy)}
+  .bnav a .bdg{position:absolute;top:2px;right:calc(50% - 21px);margin:0}
+  .tabs{max-width:100%;overflow-x:auto;flex-wrap:nowrap;padding:2px 1px 8px}
   .tabs button{flex:0 0 auto;min-height:40px}
-  .rowtools{align-items:stretch}
-  .rowtools>*{max-width:100%;min-width:0}
-  .rowtools .btn{flex:1 1 auto}
-  .mrow{align-items:flex-start}
-  .mrow .grow{min-width:0;flex:1 1 100%}
-  .mrow .acts{width:100%}
-  .qcard .opts{grid-template-columns:minmax(0,1fr)}
+  .rowtools{display:flex;flex-wrap:wrap;align-items:stretch;gap:.5rem}
+  .rowtools>*{min-width:0;max-width:100%}
+  .rowtools .btn{flex:1 1 auto;white-space:normal}
+  .fmsgbox{max-width:100%;height:min(55dvh,520px);min-height:220px}
   .fmsg{max-width:92%}
-  .fmsgbox{height:min(55dvh,520px);min-height:240px}
+  .progress-desktop{display:none}
+  .progress-mobile{display:grid;gap:.75rem}
 }
 @media(max-width:560px){
-  main{padding:.85rem .7rem calc(90px + env(safe-area-inset-bottom))}
-  .top{gap:.45rem;padding-left:.6rem;padding-right:.6rem}
-  .top .brand img{width:34px;height:34px}
-  .top .brand b{font-size:.76rem;max-width:37vw}
-  .top .sel{max-width:31vw;padding:.4rem .35rem;font-size:.73rem}
-  .top .who{gap:.35rem}
+  main{padding:.85rem .7rem calc(6.5rem + env(safe-area-inset-bottom))}
+  .top{gap:.3rem;padding-left:.5rem;padding-right:.5rem}
+  .top .brand img{width:32px;height:32px}
+  .top .brand b{font-size:.72rem;max-width:30vw}
+  .top .sel{max-width:25vw;font-size:.66rem;padding:.38rem .25rem}
   .top .av{width:32px;height:32px}
-  .top .icn{width:34px;height:34px}
-  .banner{flex-direction:column;padding:1rem}
-  .banner .ring{align-self:flex-end;margin-top:0}
+  .top .icn{width:32px;height:32px}
+  .ph h2{font-size:1.22rem}
+  .ph p{font-size:.82rem;line-height:1.45}
   .card{padding:.9rem}
-  .stat{padding:.8rem}
-  .stat b{font-size:1.25rem}
-  .list li{align-items:flex-start}
+  .banner{padding:1rem;gap:.7rem}
+  .banner h2{font-size:1.18rem}
+  .banner .ring{width:64px;height:64px}
+  .banner .ring b{width:50px;height:50px;font-size:.9rem}
   .tw{width:100%}
   .tw table{min-width:560px}
   .mx{min-width:760px}
   .exam .hd{align-items:flex-start}
-  .exam .hd>*{min-width:0}
   .btn{max-width:100%;white-space:normal}
-  .db{padding:.9rem}
-  .dh{padding:.9rem 1rem}
-  .pwa-update{bottom:calc(74px + env(safe-area-inset-bottom))}
+  dialog{width:calc(100vw - 16px);max-width:calc(100vw - 16px);max-height:90dvh}
+  .dh{padding:.85rem 1rem}
+  .db{padding:.9rem;max-height:calc(90dvh - 65px)}
 }
 @media(max-width:380px){
-  .top .brand b{max-width:32vw;font-size:.7rem}
-  .top .sel{max-width:28vw;font-size:.68rem}
-  .top .who{display:none}
-  .bnav a{font-size:.61rem}
+  .top .brand b{max-width:26vw;font-size:.67rem}
+  .top .sel{max-width:23vw;font-size:.62rem}
+  .top .who{display:flex!important}
+  .top .av{display:grid!important;visibility:visible!important;opacity:1!important}
+  .top .icn{width:30px;height:30px}
+  .bnav a{font-size:.58rem}
   main{padding-left:.55rem;padding-right:.55rem}
 }
 @media(orientation:landscape) and (max-height:500px) and (max-width:900px){
   .bnav{position:static}
-  main{padding-bottom:1.2rem}
+  main{padding-bottom:1rem}
   dialog{max-height:calc(100vh - 12px)}
 }
