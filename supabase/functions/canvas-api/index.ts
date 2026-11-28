@@ -596,22 +596,29 @@ async function handle(action: string, p: any, u: any) {
         const sessions = await rows("exam_attempt_sessions", q => q.eq("exam_id", ex.id).eq("student_username", u.username).order("started_at", { ascending: false }));
         activeSession = sessions.find(x => !x.completed_at);
         if (!activeSession) fail("No hay un tiempo de examen activo. Abre el examen nuevamente.");
-        if (new Date(activeSession.expires_at).getTime() < Date.now()) fail("El tiempo disponible para este examen ha terminado. No se puede recibir la entrega.");
+        const expiredByMs = Date.now() - new Date(activeSession.expires_at).getTime();
+        // La entrega automática iniciada por el contador tiene una breve
+        // tolerancia para completar la petición de red, pero no admite entregas tardías manuales.
+        if (expiredByMs > 0 && !(p.autoEntregaPorTiempo === true && expiredByMs <= 120000)) {
+          fail("El tiempo disponible para este examen ha terminado. La entrega automática ya no está disponible; contacta al profesor.");
+        }
       }
       const qs = await rows("questions", q => q.eq("exam_id", ex.id).order("sort_order"));
       const answers = Array.isArray(p.respuestas) ? p.respuestas : [];
       if (!qs.length || answers.length !== qs.length) fail("No se recibieron todas las respuestas del examen.");
+      const automaticTimeout = p.autoEntregaPorTiempo === true;
       for (let i = 0; i < qs.length; i++) {
         const question = qs[i], kind = question.kind;
         if (!["sm", "vf", "red"].includes(kind)) fail("El examen contiene una pregunta antigua no permitida. El profesor debe actualizarla antes de recibir entregas.");
         if (kind === "red") {
           const written = typeof answers[i] === "string" ? answers[i].trim() : "";
-          if (written.length < 10) fail("Completa la redacción de la pregunta " + (i + 1) + " (mínimo 10 caracteres).");
+          if (!automaticTimeout && written.length < 10) fail("Completa la redacción de la pregunta " + (i + 1) + " (mínimo 10 caracteres).");
           if (written.length > 12000) fail("La redacción no puede superar 12 000 caracteres.");
           answers[i] = written;
         } else {
-          const selected = answers[i] === null || answers[i] === undefined ? NaN : Number(answers[i]);
+          const selected = answers[i] === null || answers[i] === undefined || answers[i] === "" ? NaN : Number(answers[i]);
           const options = kind === "vf" ? ["Verdadero", "Falso"] : (Array.isArray(question.options) ? question.options : []);
+          if (automaticTimeout && !Number.isFinite(selected)) { answers[i] = null; continue; }
           if (!Number.isInteger(selected) || selected < 0 || selected >= options.length) fail("Selecciona una respuesta válida en la pregunta " + (i + 1) + ".");
           answers[i] = selected;
         }
