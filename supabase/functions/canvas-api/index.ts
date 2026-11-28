@@ -597,8 +597,11 @@ async function handle(action: string, p: any, u: any) {
         activeSession = sessions.find(x => !x.completed_at);
         if (!activeSession) fail("No hay un tiempo de examen activo. Abre el examen nuevamente.");
         const expiredByMs = Date.now() - new Date(activeSession.expires_at).getTime();
-        // La entrega automática iniciada por el contador tiene una breve
-        // tolerancia para completar la petición de red, pero no admite entregas tardías manuales.
+        // La entrega automática solo se admite al vencer el contador (con
+        // 5 s de margen de reloj) y tiene 2 min para completar la petición de red.
+        if (p.autoEntregaPorTiempo === true && expiredByMs < -5000) {
+          fail("La entrega automática se inició antes de terminar el tiempo.");
+        }
         if (expiredByMs > 0 && !(p.autoEntregaPorTiempo === true && expiredByMs <= 120000)) {
           fail("El tiempo disponible para este examen ha terminado. La entrega automática ya no está disponible; contacta al profesor.");
         }
