@@ -510,17 +510,26 @@ BIND.examen = id => {
   const f = $('#xf'); if (!f) return;
   const timerEl = $('#examTimer');
   const deadline = S.examenActual?.sesionExamen?.vence ? new Date(S.examenActual.sesionExamen.vence).getTime() : null;
+  let autoSubmitting = false;
   if (timerEl && deadline) {
     const updateTimer = () => {
       const left = Math.max(0, deadline - Date.now());
       const mins = Math.floor(left / 60000), secs = Math.floor((left % 60000) / 1000);
-      timerEl.innerHTML = left > 0
-        ? '<i class="fas fa-clock"></i> Tiempo restante: ' + mins + ':' + String(secs).padStart(2, '0')
-        : '<i class="fas fa-hourglass-end"></i> El tiempo ha terminado. La entrega ya no está disponible.';
-      if (left <= 0) { const submit = f.querySelector('button[type=submit]'); if (submit) submit.disabled = true; clearInterval(examTimer); examTimer = null; }
+      if (left > 0) {
+        timerEl.innerHTML = '<i class="fas fa-clock"></i> Tiempo restante: ' + mins + ':' + String(secs).padStart(2, '0');
+      } else if (!autoSubmitting) {
+        autoSubmitting = true;
+        timerEl.innerHTML = '<i class="fas fa-hourglass-end"></i> Tiempo agotado. Enviando automáticamente tus respuestas…';
+        const submit = f.querySelector('button[type=submit]');
+        if (submit) submit.disabled = true;
+        clearInterval(examTimer); examTimer = null;
+        // Disparar el manejador directamente permite enviar también preguntas
+        // sin responder, que se califican como cero al agotarse el tiempo.
+        f.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      }
     };
     updateTimer();
-    examTimer = setInterval(updateTimer, 1000);
+    if (!autoSubmitting) examTimer = setInterval(updateTimer, 1000);
   }
   f.addEventListener('change', e => {
     const match = /^q(\d+)_(\d+)$/.exec(e.target?.name || '');
@@ -544,11 +553,11 @@ BIND.examen = id => {
         if (q.tipo === 'sm' || q.tipo === 'vf') { const v = f.querySelector(`input[name=q${i}]:checked`); return v ? Number(v.value) : null; }
         return f.querySelector(`[name=q${i}]`)?.value || '';
       });
-      S.resExamen = await API.call('enviarIntento', { examenId: id, respuestas });
+      S.resExamen = await API.call('enviarIntento', { examenId: id, respuestas, autoEntregaPorTiempo: autoSubmitting });
       await loadAsigData();
       $('#view').innerHTML = VIEW.examen(id); BIND.examen(id); window.scrollTo(0, 0);
       toast(S.resExamen.pendienteRevision ? 'Parte automática corregida. Redacción pendiente de revisión.' : 'Examen calificado: ' + S.resExamen.puntaje + '/' + S.resExamen.total);
-    } catch (ex2) { toast(ex2.message); btn.disabled = false; }
+    } catch (ex2) { toast(ex2.message); btn.disabled = autoSubmitting; if (autoSubmitting && timerEl) timerEl.innerHTML = '<i class="fas fa-triangle-exclamation"></i> No se pudo confirmar la entrega automática. Contacta al profesor y no cierres esta pantalla.'; }
   };
 };
 BIND.foro = id => {
