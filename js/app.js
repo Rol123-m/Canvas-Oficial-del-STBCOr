@@ -387,8 +387,12 @@ VIEW.examen = id => {
   const previous = S.misNotas.find(n => n.examenId === id);
   if (previous && !x.permitirReintento) return `<div class="ph"><h2>${esc(x.titulo)}</h2><p>Este examen ya fue entregado y no admite otro intento.</p></div>
     <div class="card"><h3>${previous.estadoRevision === 'pending' ? 'Pendiente de revisión del profesor' : 'Calificación final'}</h3><p>${previous.estadoRevision === 'pending' ? 'La parte automática se ha calificado. La nota definitiva aparecerá cuando el profesor revise las respuestas de redacción.' : (previous.puntaje + ' / ' + previous.total + ' puntos')}</p><a class="btn sec" href="#/examenes">Volver a exámenes</a></div>`;
+  if (x.tiempoLimiteMinutos && !x.sesionExamen) return `<div class="ph"><h2>${esc(x.titulo)}</h2><p>${esc(x.descripcion || '')}</p></div>
+    <div class="card"><div class="notice"><i class="fas fa-clock"></i> Este examen tiene un límite de ${x.tiempoLimiteMinutos} minutos. El contador comenzará cuando pulses «Comenzar examen».</div>
+    <p>Prepara tus respuestas. Una vez iniciado el intento, el tiempo seguirá corriendo aunque recargues la página.</p>
+    <button class="btn" id="startExam" type="button"><i class="fas fa-play"></i> Comenzar examen</button></div>`;
   return `<div class="ph"><h2>${esc(x.titulo)}</h2><p>${esc(x.descripcion || '')}</p></div>
-  ${x.tiempoLimiteMinutos ? `<div class="notice" id="examTimer" role="status"><i class="fas fa-clock"></i> Tiempo límite: ${x.tiempoLimiteMinutos} minutos. El tiempo comienza al abrir el examen.</div>` : '<div class="notice"><i class="fas fa-infinity"></i> Este examen no tiene límite de tiempo.</div>'}
+  ${x.tiempoLimiteMinutos ? `<div class="notice" id="examTimer" role="status"><i class="fas fa-clock"></i> Tiempo límite: ${x.tiempoLimiteMinutos} minutos.</div>` : '<div class="notice"><i class="fas fa-infinity"></i> Este examen no tiene límite de tiempo.</div>'}
   <form id="xf"><div class="card" style="margin-bottom:1.1rem">${x.preguntas.map((q, i) => {
     const meta = q.metadata || {};
     let field = '', promptHtml = esc(q.texto || '');
@@ -507,6 +511,18 @@ BIND.modulo = id => {
 };
 BIND.examen = id => {
   if (examTimer) { clearInterval(examTimer); examTimer = null; }
+  const startButton = $('#startExam');
+  if (startButton) {
+    startButton.onclick = async () => {
+      startButton.disabled = true;
+      try {
+        S.examenActual.sesionExamen = await API.call('iniciarIntento', { examenId: id });
+        $('#view').innerHTML = VIEW.examen(id);
+        BIND.examen(id);
+      } catch (err) { toast(err.message); startButton.disabled = false; }
+    };
+    return;
+  }
   const f = $('#xf'); if (!f) return;
   const timerEl = $('#examTimer');
   const deadline = S.examenActual?.sesionExamen?.vence ? new Date(S.examenActual.sesionExamen.vence).getTime() : null;
