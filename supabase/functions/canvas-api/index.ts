@@ -474,15 +474,9 @@ async function handle(action: string, p: any, u: any) {
       const ex = await one("exams", q => q.eq("id", p.id)); if (!ex) fail("Examen no encontrado.");
       await enrolled(u, ex.subject_id);
       const qs = await rows("questions", q => q.eq("exam_id", ex.id).order("sort_order"));
-      let sesionExamen: any = null;
-      if (u.role === "estudiante" && ex.time_limit_minutes != null) {
-        const attempts = await rows("exam_attempts", q => q.eq("exam_id", ex.id).eq("student_username", u.username));
-        if (!attempts.length || ex.allow_retake) {
-          const sessions = await rows("exam_attempt_sessions", q => q.eq("exam_id", ex.id).eq("student_username", u.username).order("started_at", { ascending: false }));
-          const active = sessions.find(x => !x.completed_at && new Date(x.expires_at).getTime() > Date.now());
-          if (active) sesionExamen = { inicia: active.started_at, vence: active.expires_at };
-        }
-      }
+      // Consultar/abrir el examen nunca debe iniciar ni reactivar el reloj.
+      // La sesión solo se obtiene mediante iniciarIntento, tras pulsar el botón.
+      const sesionExamen: any = null;
       return { ...mapExam(ex), sesionExamen, preguntas: qs.map(q => mapQuestion(q, u.role !== "estudiante")) };
     }
     case "iniciarIntento": {
