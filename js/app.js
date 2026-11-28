@@ -527,26 +527,6 @@ BIND.examen = id => {
   const timerEl = $('#examTimer');
   const deadline = S.examenActual?.sesionExamen?.vence ? new Date(S.examenActual.sesionExamen.vence).getTime() : null;
   let autoSubmitting = false;
-  if (timerEl && deadline) {
-    const updateTimer = () => {
-      const left = Math.max(0, deadline - Date.now());
-      const mins = Math.floor(left / 60000), secs = Math.floor((left % 60000) / 1000);
-      if (left > 0) {
-        timerEl.innerHTML = '<i class="fas fa-clock"></i> Tiempo restante: ' + mins + ':' + String(secs).padStart(2, '0');
-      } else if (!autoSubmitting) {
-        autoSubmitting = true;
-        timerEl.innerHTML = '<i class="fas fa-hourglass-end"></i> Tiempo agotado. Enviando automáticamente tus respuestas…';
-        const submit = f.querySelector('button[type=submit]');
-        if (submit) submit.disabled = true;
-        clearInterval(examTimer); examTimer = null;
-        // Disparar el manejador directamente permite enviar también preguntas
-        // sin responder, que se califican como cero al agotarse el tiempo.
-        f.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-      }
-    };
-    updateTimer();
-    if (!autoSubmitting) examTimer = setInterval(updateTimer, 1000);
-  }
   f.addEventListener('change', e => {
     const match = /^q(\d+)_(\d+)$/.exec(e.target?.name || '');
     if (!match) return;
@@ -575,6 +555,30 @@ BIND.examen = id => {
       toast(S.resExamen.pendienteRevision ? 'Parte automática corregida. Redacción pendiente de revisión.' : 'Examen calificado: ' + S.resExamen.puntaje + '/' + S.resExamen.total);
     } catch (ex2) { toast(ex2.message); btn.disabled = autoSubmitting; if (autoSubmitting && timerEl) timerEl.innerHTML = '<i class="fas fa-triangle-exclamation"></i> No se pudo confirmar la entrega automática. Contacta al profesor y no cierres esta pantalla.'; }
   };
+
+  // Iniciar el temporizador DESPUÉS de registrar el manejador de entrega.
+  // Si el plazo ya venció al renderizar (p. ej. al reabrir una sesión caducada),
+  // la entrega automática no se pierde por dispararse antes de f.onsubmit.
+  if (timerEl && deadline) {
+    const updateTimer = () => {
+      const left = Math.max(0, deadline - Date.now());
+      const mins = Math.floor(left / 60000), secs = Math.floor((left % 60000) / 1000);
+      if (left > 0) {
+        timerEl.innerHTML = '<i class="fas fa-clock"></i> Tiempo restante: ' + mins + ':' + String(secs).padStart(2, '0');
+      } else if (!autoSubmitting) {
+        autoSubmitting = true;
+        timerEl.innerHTML = '<i class="fas fa-hourglass-end"></i> Tiempo agotado. Enviando automáticamente tus respuestas…';
+        const submit = f.querySelector('button[type=submit]');
+        if (submit) submit.disabled = true;
+        clearInterval(examTimer); examTimer = null;
+        // Disparar el manejador directamente permite enviar también preguntas
+        // sin responder, que se califican como cero al agotarse el tiempo.
+        f.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      }
+    };
+    updateTimer();
+    if (!autoSubmitting) examTimer = setInterval(updateTimer, 1000);
+  }
 };
 BIND.foro = id => {
   pintarChat(); iniciarForo();
