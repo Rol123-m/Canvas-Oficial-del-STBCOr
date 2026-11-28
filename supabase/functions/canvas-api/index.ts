@@ -501,7 +501,10 @@ async function handle(action: string, p: any, u: any) {
           Math.abs(storedDurationMs - expectedDurationMs) <= 1500;
         return durationMatches && expiresMs > nowMs;
       });
-      if (active) return { inicia: active.started_at, vence: active.expires_at };
+      if (active) {
+        const restanteMs = Math.max(0, new Date(active.expires_at).getTime() - Date.now());
+        return { inicia: active.started_at, vence: active.expires_at, restanteMs };
+      }
 
       // Cerrar sesiones abiertas vencidas o creadas con otro límite de tiempo.
       // Así nunca se hereda un contador viejo al volver a comenzar el examen.
@@ -513,7 +516,8 @@ async function handle(action: string, p: any, u: any) {
       const started = new Date(nowMs);
       const expires = new Date(nowMs + expectedDurationMs);
       const session = await insert("exam_attempt_sessions", { id: uid("es"), exam_id: ex.id, student_username: u.username, started_at: started.toISOString(), expires_at: expires.toISOString(), completed_at: null });
-      return { inicia: session.started_at, vence: session.expires_at };
+      const restanteMs = Math.max(0, new Date(session.expires_at).getTime() - Date.now());
+      return { inicia: session.started_at, vence: session.expires_at, restanteMs };
     }
     case "saveExamen": {
       const ex = p.examen || {};
