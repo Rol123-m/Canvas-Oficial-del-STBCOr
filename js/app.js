@@ -525,7 +525,10 @@ BIND.examen = id => {
   }
   const f = $('#xf'); if (!f) return;
   const timerEl = $('#examTimer');
-  const deadline = S.examenActual?.sesionExamen?.vence ? new Date(S.examenActual.sesionExamen.vence).getTime() : null;
+  // Evitar depender del reloj civil del teléfono, que puede estar desajustado.
+  // El servidor entrega el tiempo restante; performance.now() es monotónico.
+  const remainingMs = Number(S.examenActual?.sesionExamen?.restanteMs);
+  const deadline = Number.isFinite(remainingMs) && remainingMs >= 0 ? performance.now() + remainingMs : null;
   let autoSubmitting = false;
   f.addEventListener('change', e => {
     const match = /^q(\d+)_(\d+)$/.exec(e.target?.name || '');
@@ -561,7 +564,7 @@ BIND.examen = id => {
   // la entrega automática no se pierde por dispararse antes de f.onsubmit.
   if (timerEl && deadline) {
     const updateTimer = () => {
-      const left = Math.max(0, deadline - Date.now());
+      const left = Math.max(0, deadline - performance.now());
       const mins = Math.floor(left / 60000), secs = Math.floor((left % 60000) / 1000);
       if (left > 0) {
         timerEl.innerHTML = '<i class="fas fa-clock"></i> Tiempo restante: ' + mins + ':' + String(secs).padStart(2, '0');
