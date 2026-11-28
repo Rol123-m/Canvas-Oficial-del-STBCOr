@@ -487,10 +487,31 @@ async function handle(action: string, p: any, u: any) {
       const attempts = await rows("exam_attempts", q => q.eq("exam_id", ex.id).eq("student_username", u.username));
       if (attempts.length && !ex.allow_retake) fail("Este examen ya fue entregado y no admite otro intento.");
       const sessions = await rows("exam_attempt_sessions", q => q.eq("exam_id", ex.id).eq("student_username", u.username).order("started_at", { ascending: false }));
-      const active = sessions.find(x => !x.completed_at && new Date(x.expires_at).getTime() > Date.now());
+      const nowMs = Date.now();
+      const expectedDurationMs = Number(ex.time_limit_minutes) * 60000;
+      // Solo se puede reanudar una sesión vigente si fue creada con el mismo
+      // límite que tiene el examen ahora. Si el profesor cambió la duración,
+      // la sesión anterior queda obsoleta y no debe consumir el nuevo intento.
+      const active = sessions.find(x => {
+        if (x.completed_at) return false;
+        const startedMs = new Date(x.started_at).getTime();
+        const expiresMs = new Date(x.expires_at).getTime();
+        const storedDurationMs = expiresMs - startedMs;
+        const durationMatches = Number.isFinite(storedDurationMs) &&
+          Math.abs(storedDurationMs - expectedDurationMs) <= 1500;
+        return durationMatches && expiresMs > nowMs;
+      });
       if (active) return { inicia: active.started_at, vence: active.expires_at };
-      const started = new Date();
-      const expires = new Date(started.getTime() + Number(ex.time_limit_minutes) * 60000);
+
+      // Cerrar sesiones abiertas vencidas o creadas con otro límite de tiempo.
+      // Así nunca se hereda un contador viejo al volver a comenzar el examen.
+      const obsolete = sessions.filter(x => !x.completed_at);
+      for (const session of obsolete) {
+        await patch("exam_attempt_sessions", session.id, { completed_at: new Date(nowMs).toISOString() });
+      }
+
+      const started = new Date(nowMs);
+      const expires = new Date(nowMs + expectedDurationMs);
       const session = await insert("exam_attempt_sessions", { id: uid("es"), exam_id: ex.id, student_username: u.username, started_at: started.toISOString(), expires_at: expires.toISOString(), completed_at: null });
       return { inicia: session.started_at, vence: session.expires_at };
     }
