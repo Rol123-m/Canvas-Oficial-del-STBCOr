@@ -479,36 +479,26 @@ async function handle(action: string, p: any, u: any) {
         const attempts = await rows("exam_attempts", q => q.eq("exam_id", ex.id).eq("student_username", u.username));
         if (!attempts.length || ex.allow_retake) {
           const sessions = await rows("exam_attempt_sessions", q => q.eq("exam_id", ex.id).eq("student_username", u.username).order("started_at", { ascending: false }));
-          const latest = sessions[0];
-          let active = latest && !latest.completed_at ? latest : null;
-          const configuredDurationMs = Number(ex.time_limit_minutes) * 60000;
-          // Repara sesiones antiguas creadas con un límite distinto al que tiene
-          // actualmente el examen. Una sesión cuyo tiempo ya venció y cuya
-          // duración coincide con la configuración se mantiene vencida.
-          if (active) {
-            const storedDurationMs = new Date(active.expires_at).getTime() - new Date(active.started_at).getTime();
-            if (!Number.isFinite(storedDurationMs) || Math.abs(storedDurationMs - configuredDurationMs) > 1000) {
-              const started = new Date();
-              const expires = new Date(started.getTime() + configuredDurationMs);
-              active = await patch("exam_attempt_sessions", active.id, {
-                started_at: started.toISOString(),
-                expires_at: expires.toISOString(),
-                completed_at: null
-              });
-            }
-          }
-          if (!active) {
-            const started = new Date();
-            const expires = new Date(started.getTime() + configuredDurationMs);
-            const values = { started_at: started.toISOString(), expires_at: expires.toISOString(), completed_at: null };
-            active = latest
-              ? await patch("exam_attempt_sessions", latest.id, values)
-              : await insert("exam_attempt_sessions", { id: uid("es"), exam_id: ex.id, student_username: u.username, ...values });
-          }
-          sesionExamen = { inicia: active.started_at, vence: active.expires_at };
+          const active = sessions.find(x => !x.completed_at && new Date(x.expires_at).getTime() > Date.now());
+          if (active) sesionExamen = { inicia: active.started_at, vence: active.expires_at };
         }
       }
       return { ...mapExam(ex), sesionExamen, preguntas: qs.map(q => mapQuestion(q, u.role !== "estudiante")) };
+    }
+    case "iniciarIntento": {
+      if (u.role !== "estudiante") fail("Solo un estudiante puede iniciar este examen.");
+      const ex = await one("exams", q => q.eq("id", p.examenId).eq("visible", true)); if (!ex) fail("Examen no encontrado.");
+      await enrolled(u, ex.subject_id);
+      if (ex.time_limit_minutes == null) fail("Este examen no tiene un límite de tiempo.");
+      const attempts = await rows("exam_attempts", q => q.eq("exam_id", ex.id).eq("student_username", u.username));
+      if (attempts.length && !ex.allow_retake) fail("Este examen ya fue entregado y no admite otro intento.");
+      const sessions = await rows("exam_attempt_sessions", q => q.eq("exam_id", ex.id).eq("student_username", u.username).order("started_at", { ascending: false }));
+      const active = sessions.find(x => !x.completed_at && new Date(x.expires_at).getTime() > Date.now());
+      if (active) return { inicia: active.started_at, vence: active.expires_at };
+      const started = new Date();
+      const expires = new Date(started.getTime() + Number(ex.time_limit_minutes) * 60000);
+      const session = await insert("exam_attempt_sessions", { id: uid("es"), exam_id: ex.id, student_username: u.username, started_at: started.toISOString(), expires_at: expires.toISOString(), completed_at: null });
+      return { inicia: session.started_at, vence: session.expires_at };
     }
     case "saveExamen": {
       const ex = p.examen || {};
