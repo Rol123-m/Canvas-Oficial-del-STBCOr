@@ -104,7 +104,7 @@ async function enrolled(u: any, sid: string) {
 const mapUser = (u: any) => ({ id: u.id, nombre: u.full_name, usuario: u.username, grupo: u.group_name || "", estado: u.status, email: u.email || "", rol: u.role });
 const mapSubject = (a: any) => ({ id: a.id, nombre: a.name, descripcion: a.description, color: a.color, profesor: a.professor_username || "", profesorNombre: [a.professor_name, a.professor2_name].filter(Boolean).join(" · "), segundoProfesor: a.professor2_username || "", segundoProfesorNombre: a.professor2_name || "", profesoresNombres: [a.professor_name, a.professor2_name].filter(Boolean).join(" · "), chatAbierto: a.chat_open ? "Si" : "No", creada: a.created_at });
 const mapModule = (m: any) => ({ id: m.id, asignaturaId: m.subject_id, titulo: m.title, icono: m.icon, tipo: m.kind, contenido: m.content, orden: m.sort_order, visible: m.visible });
-const mapExam = (e: any) => ({ id: e.id, asignaturaId: e.subject_id, titulo: e.title, descripcion: e.description, visible: e.visible, creado: e.created_at });
+const mapExam = (e: any) => ({ id: e.id, asignaturaId: e.subject_id, titulo: e.title, descripcion: e.description, visible: e.visible, permitirReintento: !!e.allow_retake, tiempoLimiteMinutos: e.time_limit_minutes == null ? null : Number(e.time_limit_minutes), creado: e.created_at });
 function stableAssessmentJson(value: any): string {
   if (Array.isArray(value)) return "[" + value.map(stableAssessmentJson).join(",") + "]";
   if (value && typeof value === "object") return "{" + Object.keys(value).sort().map(key => JSON.stringify(key) + ":" + stableAssessmentJson(value[key])).join(",") + "}";
@@ -363,6 +363,19 @@ async function handle(action: string, p: any, u: any) {
       await patch("subject_deletion_requests", req.id, { status:"rejected", reviewed_by:u.id, reviewed_by_username:u.username, reviewed_at:now() });
       return { ok:true, status:"rejected" };
     }
+    case "resetStudentProgress": {
+      if (!isTechnology(u)) fail("Solo la cuenta de Tecnología puede restablecer el progreso de estudiantes.");
+      const sid = clean(p.asigId), username = clean(p.usuario).toLowerCase();
+      if (!sid || !username) fail("Selecciona una asignatura y un estudiante.");
+      await subject(sid);
+      const student = await one("app_users", q => q.eq("username", username).eq("role", "estudiante"));
+      if (!student) fail("Estudiante no encontrado.");
+      const enrollment = await one("enrollments", q => q.eq("subject_id", sid).eq("student_username", username));
+      if (!enrollment) fail("El estudiante no está matriculado en esta asignatura.");
+      const { data: deleted, error } = await db.rpc("reset_student_subject_progress", { p_subject_id: sid, p_student_username: username });
+      if (error) throw error;
+      return { ok: true, usuario: username, eliminados: deleted || {} };
+    }
     case "getMatriculados": {
       await subjectAccess(u, p.asigId);
       const ms = await rows("enrollments", q => q.eq("subject_id", p.asigId));
@@ -387,6 +400,19 @@ async function handle(action: string, p: any, u: any) {
         if (!exists) { await insert("enrollments", { id: uid("m"), subject_id: p.asigId, student_username: e.username, group_name: e.group_name || "" }); n++; }
       }
       return { n };
+    }
+    case "desmatricularGrupo": {
+      requireDir(u);
+      const sid = clean(p.asigId), group = clean(p.grupo);
+      if (!sid || !group) fail("Selecciona una asignatura y un grupo.");
+      await subject(sid);
+      const { data, error } = await db.from("enrollments")
+        .delete()
+        .eq("subject_id", sid)
+        .eq("group_name", group)
+        .select("id");
+      if (error) throw error;
+      return { ok: true, grupo: group, eliminados: data?.length || 0 };
     }
     case "desmatricular": {
       requireDir(u);
@@ -448,7 +474,41 @@ async function handle(action: string, p: any, u: any) {
       const ex = await one("exams", q => q.eq("id", p.id)); if (!ex) fail("Examen no encontrado.");
       await enrolled(u, ex.subject_id);
       const qs = await rows("questions", q => q.eq("exam_id", ex.id).order("sort_order"));
-      return { ...mapExam(ex), preguntas: qs.map(q => mapQuestion(q, u.role !== "estudiante")) };
+      let sesionExamen: any = null;
+      if (u.role === "estudiante" && ex.time_limit_minutes != null) {
+        const attempts = await rows("exam_attempts", q => q.eq("exam_id", ex.id).eq("student_username", u.username));
+        if (!attempts.length || ex.allow_retake) {
+          const sessions = await rows("exam_attempt_sessions", q => q.eq("exam_id", ex.id).eq("student_username", u.username).order("started_at", { ascending: false }));
+          const latest = sessions[0];
+          let active = latest && !latest.completed_at ? latest : null;
+          const configuredDurationMs = Number(ex.time_limit_minutes) * 60000;
+          // Repara sesiones antiguas creadas con un límite distinto al que tiene
+          // actualmente el examen. Una sesión cuyo tiempo ya venció y cuya
+          // duración coincide con la configuración se mantiene vencida.
+          if (active) {
+            const storedDurationMs = new Date(active.expires_at).getTime() - new Date(active.started_at).getTime();
+            if (!Number.isFinite(storedDurationMs) || Math.abs(storedDurationMs - configuredDurationMs) > 1000) {
+              const started = new Date();
+              const expires = new Date(started.getTime() + configuredDurationMs);
+              active = await patch("exam_attempt_sessions", active.id, {
+                started_at: started.toISOString(),
+                expires_at: expires.toISOString(),
+                completed_at: null
+              });
+            }
+          }
+          if (!active) {
+            const started = new Date();
+            const expires = new Date(started.getTime() + configuredDurationMs);
+            const values = { started_at: started.toISOString(), expires_at: expires.toISOString(), completed_at: null };
+            active = latest
+              ? await patch("exam_attempt_sessions", latest.id, values)
+              : await insert("exam_attempt_sessions", { id: uid("es"), exam_id: ex.id, student_username: u.username, ...values });
+          }
+          sesionExamen = { inicia: active.started_at, vence: active.expires_at };
+        }
+      }
+      return { ...mapExam(ex), sesionExamen, preguntas: qs.map(q => mapQuestion(q, u.role !== "estudiante")) };
     }
     case "saveExamen": {
       const ex = p.examen || {};
@@ -491,6 +551,9 @@ async function handle(action: string, p: any, u: any) {
         return { id: uid("q"), exam_id: id, kind, prompt, options, correct_answer: correct, metadata, points, sort_order: i + 1 };
       });
       if (!qs.length) fail("Añade al menos una pregunta al examen.");
+      const timeLimit = ex.tiempoLimiteMinutos == null || ex.tiempoLimiteMinutos === "" ? null : Number(ex.tiempoLimiteMinutos);
+      if (timeLimit !== null && (!Number.isInteger(timeLimit) || timeLimit < 1 || timeLimit > 1440)) fail("El tiempo límite debe estar entre 1 y 600 minutos, o dejarse vacío.");
+      const examSettings = { title: ex.titulo, description: ex.descripcion || "", visible: ex.visible !== false, allow_retake: ex.permitirReintento === true, time_limit_minutes: timeLimit };
       if (existing && existingAttempts.length) {
         const oldQuestions = await rows("questions", q => q.eq("exam_id", id).order("sort_order"));
         const unchanged = oldQuestions.length === qs.length && qs.every((next: any, i: number) => {
@@ -504,15 +567,15 @@ async function handle(action: string, p: any, u: any) {
             Number(old.sort_order || 0) === Number(next.sort_order || 0);
         });
         if (!unchanged) fail("Este examen ya tiene entregas. No se pueden modificar sus preguntas; duplica el examen para crear una nueva versión y conservar las calificaciones anteriores.");
-        await patch("exams", id, { title: ex.titulo, description: ex.descripcion || "", visible: ex.visible !== false });
+        await patch("exams", id, examSettings);
         return { id };
       }
       if (existing) {
-        await patch("exams", id, { title: ex.titulo, description: ex.descripcion || "", visible: ex.visible !== false });
+        await patch("exams", id, examSettings);
         const { error: deleteError } = await db.from("questions").delete().eq("exam_id", id);
         if (deleteError) throw deleteError;
       } else {
-        await insert("exams", { id, subject_id: ex.asignaturaId, title: ex.titulo, description: ex.descripcion || "", visible: ex.visible !== false });
+        await insert("exams", { id, subject_id: ex.asignaturaId, ...examSettings });
       }
       const { error } = await db.from("questions").insert(qs);
       if (error) throw error;
@@ -526,8 +589,15 @@ async function handle(action: string, p: any, u: any) {
       if (u.role !== "estudiante") fail("Solo un estudiante puede entregar este examen.");
       const ex = await one("exams", q => q.eq("id", p.examenId).eq("visible", true)); if (!ex) fail("Examen no encontrado.");
       await enrolled(u, ex.subject_id);
-      const priorAttempt = await one("exam_attempts", q => q.eq("exam_id", ex.id).eq("student_username", u.username));
-      if (priorAttempt) fail("Este examen permite una sola oportunidad y ya fue entregado.");
+      const priorAttempts = await rows("exam_attempts", q => q.eq("exam_id", ex.id).eq("student_username", u.username));
+      if (priorAttempts.length && !ex.allow_retake) fail("Este examen permite una sola oportunidad y ya fue entregado.");
+      let activeSession: any = null;
+      if (ex.time_limit_minutes != null) {
+        const sessions = await rows("exam_attempt_sessions", q => q.eq("exam_id", ex.id).eq("student_username", u.username).order("started_at", { ascending: false }));
+        activeSession = sessions.find(x => !x.completed_at);
+        if (!activeSession) fail("No hay un tiempo de examen activo. Abre el examen nuevamente.");
+        if (new Date(activeSession.expires_at).getTime() < Date.now()) fail("El tiempo disponible para este examen ha terminado. No se puede recibir la entrega.");
+      }
       const qs = await rows("questions", q => q.eq("exam_id", ex.id).order("sort_order"));
       const answers = Array.isArray(p.respuestas) ? p.respuestas : [];
       if (!qs.length || answers.length !== qs.length) fail("No se recibieron todas las respuestas del examen.");
@@ -563,6 +633,7 @@ async function handle(action: string, p: any, u: any) {
         return { preguntaId: q.id, tipo: kind, texto: q.prompt, respuesta: raw, opciones: q.options, metadata: {}, correcta: kind === "sm" || kind === "vf" ? Number(q.correct_answer) : null, ok, puntos: Number(q.points || 0), obtenido: earned };
       });
       const attempt = await insert("exam_attempts", { id: uid("i"), exam_id: ex.id, student_username: u.username, student_name: u.full_name, score, total, answers, review_status: pending ? "pending" : "graded" });
+      if (activeSession) await patch("exam_attempt_sessions", activeSession.id, { completed_at: now() });
       const old = await one("progress", q => q.eq("subject_id", ex.subject_id).eq("student_username", u.username).eq("item_type", "examen").eq("item_id", ex.id));
       if (old) await patch("progress", old.id, { completed: true, updated_at: now() });
       else await insert("progress", { id: uid("g"), subject_id: ex.subject_id, student_username: u.username, student_name: u.full_name, item_type: "examen", item_id: ex.id, completed: true });
